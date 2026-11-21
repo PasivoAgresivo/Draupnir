@@ -456,6 +456,7 @@ function openFoodForm(f, then){
   const field = (k,l,extra='') => `<label class="f"><span>${l}</span><input type="number" id="f_${k}" inputmode="decimal" step="any" min="0" value="${v(k)}" ${extra}></label>`;
   const m=openModal(`${head(isEdit?'Upravit potravinu':'Nová potravina')}
     ${f.source==='off'?'<p class="small muted" style="margin-top:0">Data z Open Food Facts. Zkontroluj je podle obalu.</p>':''}
+    ${f.source==='base'?'<p class="small muted" style="margin-top:0">Základní potravina s průměrnými hodnotami. U konkrétního výrobku se údaje na obalu můžou lišit.</p>':''}
     <label class="f"><span>Název *</span><input type="text" id="f_name" value="${v('name')}" required></label>
     <div class="grid2">
       <label class="f"><span>Značka</span><input type="text" id="f_brand" value="${v('brand')}"></label>
