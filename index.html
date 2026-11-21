@@ -370,6 +370,12 @@ function openAmount(food, meal, entry){
       <button data-g="50">50 g</button><button data-g="100">100 g</button><button data-g="150">150 g</button><button data-g="200">200 g</button>
       ${food.serving_g?`<button data-g="${Number(food.serving_g)}">1 porce (${r1(food.serving_g)} g)</button>`:''}
     </div>
+    ${food.serving_g?`<label class="f"><span>Počet kusů / porcí (1 = ${r1(food.serving_g)} g)</span>
+      <div class="row">
+        <button class="btn secondary" type="button" id="cMinus" style="width:48px">−</button>
+        <input type="number" id="count" inputmode="decimal" min="0" step="any" style="text-align:center">
+        <button class="btn secondary" type="button" id="cPlus" style="width:48px">+</button>
+      </div></label>`:''}
     <div class="grid2">
       <label class="f"><span>Množství (g)</span><input type="number" id="grams" inputmode="decimal" min="1" step="any" value="${g0}"></label>
       <label class="f"><span>Jídlo</span><select id="meal">${MEALS.map(([k,l])=>`<option value="${k}" ${k===meal?'selected':''}>${l}</option>`).join('')}</select></label>
@@ -381,8 +387,16 @@ function openAmount(food, meal, entry){
   const calc=()=>{ const g=num(gi.value)||0, k=g/100;
     return { grams:g, kcal:r1(food.kcal*k), protein:r1(food.protein*k), carbs:r1(food.carbs*k), fat:r1(food.fat*k) }; };
   const upd=()=>{ const v=calc(); $('#preview',m).innerHTML=`<b>${r0(v.kcal)} kcal</b> · B ${v.protein} g · S ${v.carbs} g · T ${v.fat} g`; };
-  gi.oninput=upd; upd();
-  m.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ gi.value=b.dataset.g; upd(); });
+  const ci=$('#count',m), sv=Number(food.serving_g)||0;
+  const syncCount=()=>{ if(ci) ci.value = r1((num(gi.value)||0)/sv); };
+  const setCount=c=>{ c=Math.max(0, Math.round(c*10)/10); ci.value=c; gi.value=r1(c*sv); upd(); };
+  gi.oninput=()=>{ syncCount(); upd(); }; syncCount(); upd();
+  if(ci){
+    ci.oninput=()=>{ const c=num(ci.value); if(c!=null){ gi.value=r1(c*sv); upd(); } };
+    $('#cMinus',m).onclick=()=>setCount(Math.ceil((num(ci.value)||0)-1));
+    $('#cPlus',m).onclick=()=>setCount(Math.floor((num(ci.value)||0)+1));
+  }
+  m.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ gi.value=b.dataset.g; syncCount(); upd(); });
   $('#save',m).onclick=async()=>{
     const v=calc(); if(!(v.grams>0)) return toast('Zadej množství v gramech');
     const row={ ...v, meal:$('#meal',m).value, food_id:food.id??null, food_name:food.name+(food.brand?' ('+food.brand+')':'') };
