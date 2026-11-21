@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Draupnir</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Draupnir">
+<meta name="theme-color" content="#0f766e">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+:root{
+  --bg:#f4f6f5; --card:#fff; --ink:#17201d; --muted:#66736e; --line:#e3e8e6;
+  --brand:#0f766e; --brand-soft:#e6f3f1; --warn:#c2410c; --danger:#b91c1c;
+  --p:#2563eb; --c:#d97706; --f:#9333ea;
+  --radius:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+button,input,select{font:inherit;color:inherit}
+input,select{font-size:16px}
+.hidden{display:none!important}
+header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding:calc(env(safe-area-inset-top) + 10px) 16px 8px;display:flex;align-items:center;justify-content:space-between}
+header.top h1{font-size:20px;margin:0}
+main{padding:0 16px calc(90px + env(safe-area-inset-bottom));max-width:640px;margin:0 auto}
+.card{background:var(--card);border-radius:var(--radius);padding:14px;margin:0 0 12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.card h2{font-size:16px;margin:0 0 10px}
+.row{display:flex;align-items:center;gap:8px}
+.between{justify-content:space-between}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.btn{border:0;border-radius:10px;padding:10px 14px;background:var(--brand);color:#fff;font-weight:600;cursor:pointer}
+.btn.secondary{background:var(--brand-soft);color:var(--brand)}
+.btn.ghost{background:transparent;color:var(--brand);padding:6px 8px}
+.btn.danger{background:#fdecec;color:var(--danger)}
+.btn.block{width:100%}
+.btn:disabled{opacity:.5}
+label.f{display:block;margin:0 0 10px}
+label.f span{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+input[type=text],input[type=email],input[type=password],input[type=number],input[type=date],input[type=search],select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 10px}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:#fff;border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs button{flex:1;border:0;background:none;padding:10px 0 8px;font-size:12px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px}
+nav.tabs button svg{width:24px;height:24px}
+nav.tabs button.active{color:var(--brand);font-weight:600}
+/* souhrn dne */
+.datebar{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.datebar .d{font-weight:600}
+.ring-wrap{display:flex;align-items:center;gap:16px}
+.ring{position:relative;width:110px;height:110px;flex:none}
+.ring svg{transform:rotate(-90deg)}
+.ring .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.ring .big{font-size:22px;font-weight:700}
+.macros{flex:1;display:flex;flex-direction:column;gap:8px}
+.macro .lbl{display:flex;justify-content:space-between;font-size:13px}
+.bar{height:7px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:3px}
+.bar i{display:block;height:100%;border-radius:4px}
+/* jídla */
+.meal h3{font-size:15px;margin:0}
+.entry{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid var(--line);cursor:pointer}
+.entry:first-of-type{border-top:0}
+.entry .n{font-weight:500}
+.entry .k{font-weight:600;white-space:nowrap}
+.list-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);cursor:pointer}
+.list-item:first-child{border-top:0}
+.tag{font-size:11px;padding:1px 6px;border-radius:6px;background:var(--brand-soft);color:var(--brand);margin-left:4px;vertical-align:middle}
+/* modal */
+.modal{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--bg);width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.sheet-head h2{margin:0;font-size:18px}
+#reader{width:100%;border-radius:12px;overflow:hidden;background:#000;min-height:220px}
+.seg{display:flex;background:var(--line);border-radius:10px;padding:3px;margin-bottom:12px}
+.seg button{flex:1;border:0;background:none;padding:8px;border-radius:8px;font-weight:600;color:var(--muted)}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.chips button{border:1px solid var(--line);background:#fff;border-radius:20px;padding:6px 12px}
+.result{background:var(--brand-soft);border-radius:12px;padding:12px;margin:6px 0 12px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(80px + env(safe-area-inset-bottom));background:#17201d;color:#fff;padding:10px 16px;border-radius:10px;z-index:30;font-size:14px;max-width:90vw}
+.login{max-width:380px;margin:12vh auto 0;padding:0 16px}
+.login .logo{width:64px;height:64px;border-radius:16px;display:block;margin:0 auto 12px}
+.empty{color:var(--muted);font-size:14px;padding:4px 0}
+.spark{width:100%;height:80px}
+</style>
+</head>
+<body>
+
+<!-- Přihlášení -->
+<section id="loginView" class="login hidden">
+  <img class="logo" src="icon-192.png" alt="">
+  <h1 style="text-align:center;margin:0 0 18px">Draupnir</h1>
+  <div class="card">
+    <form id="loginForm">
+      <label class="f"><span>E-mail</span><input type="email" id="loginEmail" autocomplete="username" required></label>
+      <label class="f"><span>Heslo</span><input type="password" id="loginPass" autocomplete="current-password" required></label>
+      <button class="btn block" type="submit">Přihlásit se</button>
+      <p id="loginErr" class="small" style="color:var(--danger)"></p>
+    </form>
+  </div>
+  <p class="muted small" style="text-align:center">Účet ti založí správce aplikace.</p>
+</section>
+
+<!-- Aplikace -->
+<div id="appView" class="hidden">
+  <header class="top"><h1 id="title">Jídelníček</h1><span id="who" class="muted small"></span></header>
+  <main>
+    <section id="tab-today"></section>
+    <section id="tab-foods" class="hidden"></section>
+    <section id="tab-profile" class="hidden"></section>
+  </main>
+  <nav class="tabs">
+    <button data-tab="today" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Dnes</button>
+    <button data-tab="foods"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h10"/></svg>Potraviny</button>
+    <button data-tab="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Profil</button>
+  </nav>
+</div>
+
+<div id="modalRoot"></div>
+
+<script>
+// ---------- Nastavení ----------
+const SUPABASE_URL = 'https://eavfbgcilbevavnqsyck.supabase.co';
+const SUPABASE_KEY = 'sb_publishable__tuMwwpcvxypJ1esVEZkDw_Kaf-73qz'; // veřejný klíč, data chrání Row Level Security
+const sb = window.__MOCK_SB__ || supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const MEALS = [
+  ['breakfast','Snídaně'], ['snack1','Dopolední svačina'], ['lunch','Oběd'],
+  ['snack2','Odpolední svačina'], ['dinner','Večeře']
+];
+const ACTIVITY = [
+  [1.2,'Sedavý (kancelář, bez sportu)'], [1.375,'Lehce aktivní (1–3 tréninky týdně)'],
+  [1.55,'Středně aktivní (3–5 tréninků týdně)'], [1.725,'Velmi aktivní (6–7 tréninků týdně)'],
+  [1.9,'Extrémně aktivní (fyzická práce + trénink)']
+];
+const GOALS = [['lose','Hubnutí (−15 %)'], ['maintain','Udržení váhy'], ['gain','Nabírání (+10 %)']];
+
+const S = { user:null, profile:null, foods:[], entries:[], weights:[], recentIds:[], date:todayISO(), tab:'today' };
+
+// ---------- Pomocné funkce ----------
+function todayISO(){ return toISO(new Date()); }
+function toISO(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function addDays(iso,n){ const d=new Date(iso+'T12:00:00'); d.setDate(d.getDate()+n); return toISO(d); }
+function fmtDate(iso){
+  const t=todayISO();
+  if(iso===t) return 'Dnes';
+  if(iso===addDays(t,-1)) return 'Včera';
+  if(iso===addDays(t,1)) return 'Zítra';
+  return new Date(iso+'T12:00:00').toLocaleDateString('cs-CZ',{weekday:'short',day:'numeric',month:'numeric'});
+}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm = s => String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+const r0 = n => Math.round(Number(n)||0);
+const r1 = n => Math.round((Number(n)||0)*10)/10;
+const num = v => { if(v===''||v==null) return null; const n=Number(String(v).replace(',','.')); return isNaN(n)?null:n; };
+const $ = (sel,root=document) => root.querySelector(sel);
+function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2600); }
+function fail(error, what){ console.error(error); toast((what||'Chyba')+': '+(error.message||error)); }
+
+// ---------- Výpočet cíle ----------
+function ageFrom(birth){ if(!birth) return null; const b=new Date(birth), n=new Date(); let a=n.getFullYear()-b.getFullYear(); if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate())) a--; return a; }
+function latestWeight(){ return S.weights.length ? Number(S.weights[0].weight_kg) : null; }
+function computeTargets(p, weight){
+  const age=ageFrom(p.birth_date), h=Number(p.height_cm);
+  if(!p.sex||!age||!h||!weight) return null;
+  const bmr = 10*weight + 6.25*h - 5*age + (p.sex==='m'?5:-161);    // Mifflin–St Jeor
+  const tdee = bmr * Number(p.activity_level||1.375);
+  const factor = p.goal==='lose'?0.85 : p.goal==='gain'?1.10 : 1;
+  const kcal = Math.round(tdee*factor/10)*10;
+  const protein = Math.round(weight*(p.goal==='lose'?2.0:1.8));
+  const fat = Math.round(kcal*0.25/9);
+  const carbs = Math.max(0, Math.round((kcal - protein*4 - fat*9)/4));
+  return { bmr:Math.round(bmr), tdee:Math.round(tdee), kcal, protein, carbs, fat };
+}
+function targets(){
+  const p=S.profile||{};
+  return { kcal:p.kcal_target||0, protein:p.protein_target||0, carbs:p.carbs_target||0, fat:p.fat_target||0 };
+}
+
+// ---------- Načítání dat ----------
+async function loadProfile(){
+  let { data, error } = await sb.from('profiles').select('*').eq('user_id', S.user.id).maybeSingle();
+  if(error) return fail(error,'Profil');
+  if(!data){
+    const ins = await sb.from('profiles').insert({ user_id:S.user.id, display_name:(S.user.email||'').split('@')[0] }).select().single();
+    if(ins.error) return fail(ins.error,'Profil');
+    data = ins.data;
+  }
+  S.profile = data;
+}
+async function loadFoods(){
+  const { data, error } = await sb.from('foods').select('*').order('name').limit(5000);
+  if(error) return fail(error,'Potraviny');
+  S.foods = data||[];
+}
+async function loadEntries(){
+  const { data, error } = await sb.from('meal_entries').select('*').eq('date', S.date).order('created_at');
+  if(error) return fail(error,'Záznamy');
+  S.entries = data||[];
+}
+async function loadWeights(){
+  const { data, error } = await sb.from('weight_log').select('*').order('date',{ascending:false}).limit(120);
+  if(error) return fail(error,'Váha');
+  S.weights = data||[];
+}
+async function loadRecent(){
+  const { data, error } = await sb.from('meal_entries').select('food_id,created_at').order('created_at',{ascending:false}).limit(300);
+  if(error) return;
+  const seen=new Set(); S.recentIds=[];
+  for(const r of data||[]){ if(r.food_id && !seen.has(r.food_id)){ seen.add(r.food_id); S.recentIds.push(r.food_id); } }
+}
+
+// ---------- Přihlášení ----------
+$('#loginForm').addEventListener('submit', async e=>{
+  e.preventDefault(); $('#loginErr').textContent='';
+  const { error } = await sb.auth.signInWithPassword({ email:$('#loginEmail').value.trim(), password:$('#loginPass').value });
+  if(error) $('#loginErr').textContent = error.message==='Invalid login credentials' ? 'Špatný e-mail nebo heslo.' : error.message;
+});
+
+async function onSession(session){
+  if(!session){ S.user=null; $('#appView').classList.add('hidden'); $('#loginView').classList.remove('hidden'); return; }
+  if(S.user && S.user.id===session.user.id) return;
+  S.user = session.user;
+  $('#loginView').classList.add('hidden'); $('#appView').classList.remove('hidden');
+  await loadProfile();
+  await Promise.all([loadFoods(), loadEntries(), loadWeights(), loadRecent()]);
+  renderAll();
+}
+sb.auth.onAuthStateChange((_ev, session)=>{ setTimeout(()=>onSession(session),0); });
+
+// ---------- Záložky ----------
+document.querySelectorAll('nav.tabs button').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
+function showTab(tab){
+  S.tab=tab;
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  ['today','foods','profile'].forEach(t=>$('#tab-'+t).classList.toggle('hidden', t!==tab));
+  $('#title').textContent = {today:'Jídelníček', foods:'Potraviny', profile:'Profil'}[tab];
+  render(tab); window.scrollTo(0,0);
+}
+function renderAll(){ $('#who').textContent = S.profile?.display_name || ''; render(S.tab); }
+function render(tab){ ({today:renderToday, foods:renderFoods, profile:renderProfile})[tab](); }
+
+// ---------- Záložka Dnes ----------
+function sums(list){ return list.reduce((a,e)=>({kcal:a.kcal+Number(e.kcal), protein:a.protein+Number(e.protein), carbs:a.carbs+Number(e.carbs), fat:a.fat+Number(e.fat)}),{kcal:0,protein:0,carbs:0,fat:0}); }
+function macroBar(label, val, target, color){
+  const pct = target ? Math.min(100, val/target*100) : 0;
+  return `<div class="macro"><div class="lbl"><span>${label}</span><span><b>${r0(val)}</b>${target?' / '+target:''} g</span></div>
+    <div class="bar"><i style="width:${pct}%;background:${color}"></i></div></div>`;
+}
+function renderToday(){
+  const t=targets(), s=sums(S.entries);
+  const left = t.kcal - s.kcal, R=48, C=2*Math.PI*R, pct = t.kcal? Math.min(1, s.kcal/t.kcal) : 0;
+  const over = t.kcal && s.kcal > t.kcal;
+  let html = `
+  <div class="datebar">
+    <button class="btn ghost" id="prevDay" aria-label="Předchozí den">‹</button>
+    <div class="d">${fmtDate(S.date)} <span class="muted small">${new Date(S.date+'T12:00:00').toLocaleDateString('cs-CZ')}</span></div>
+    <button class="btn ghost" id="nextDay" aria-label="Další den">›</button>
+  </div>
+  <div class="card">
+    <div class="ring-wrap">
+      <div class="ring">
+        <svg width="110" height="110" viewBox="0 0 110 110">
+          <circle cx="55" cy="55" r="${R}" fill="none" stroke="var(--line)" stroke-width="10"/>
+          <circle cx="55" cy="55" r="${R}" fill="none" stroke="${over?'var(--warn)':'var(--brand)'}" stroke-width="10" stroke-linecap="round"
+            stroke-dasharray="${C}" stroke-dashoffset="${C*(1-pct)}"/>
+        </svg>
+        <div class="center">
+          <div class="big">${r0(s.kcal)}</div>
+          <div class="small muted">${t.kcal? 'z '+t.kcal+' kcal':'kcal'}</div>
+        </div>
+      </div>
+      <div class="macros">
+        ${macroBar('Bílkoviny', s.protein, t.protein, 'var(--p)')}
+        ${macroBar('Sacharidy', s.carbs, t.carbs, 'var(--c)')}
+        ${macroBar('Tuky', s.fat, t.fat, 'var(--f)')}
+      </div>
+    </div>
+    <div class="small" style="margin-top:10px;${over?'color:var(--warn)':''}">
+      ${t.kcal ? (over ? `Přes cíl o <b>${r0(-left)} kcal</b>` : `Zbývá <b>${r0(left)} kcal</b>`) : `<a href="#" id="setGoal">Nastav si denní cíl v profilu</a>`}
+    </div>
+  </div>`;
+  for(const [key,label] of MEALS){
+    const list = S.entries.filter(e=>e.meal===key), ms = sums(list);
+    html += `<div class="card meal">
+      <div class="row between"><h3>${label}</h3><span class="muted small">${list.length? r0(ms.kcal)+' kcal':''}</span></div>
+      <div style="margin-top:6px">${list.map(e=>`
+        <div class="entry" data-id="${e.id}">
+          <div><div class="n">${esc(e.food_name)}</div><div class="small muted">${r1(e.grams)} g · B ${r1(e.protein)} · S ${r1(e.carbs)} · T ${r1(e.fat)}</div></div>
+          <div class="k">${r0(e.kcal)}</div>
+        </div>`).join('')}</div>
+      <button class="btn ghost" data-add="${key}">+ Přidat</button>
+    </div>`;
+  }
+  const el=$('#tab-today'); el.innerHTML=html;
+  $('#prevDay').onclick=async()=>{ S.date=addDays(S.date,-1); await loadEntries(); renderToday(); };
+  $('#nextDay').onclick=async()=>{ S.date=addDays(S.date,1); await loadEntries(); renderToday(); };
+  const sg=$('#setGoal'); if(sg) sg.onclick=e=>{e.preventDefault(); showTab('profile');};
+  el.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>openAddFood(b.dataset.add));
+  el.querySelectorAll('.entry').forEach(r=>r.onclick=()=>openEditEntry(S.entries.find(e=>String(e.id)===r.dataset.id)));
+}
+
+// ---------- Modální okna ----------
+let scanner=null;
+async function stopScanner(){ if(scanner){ try{ await scanner.stop(); }catch(_){} try{ scanner.clear(); }catch(_){} scanner=null; } }
+function openModal(html){
+  const root=$('#modalRoot');
+  root.innerHTML = `<div class="modal"><div class="sheet">${html}</div></div>`;
+  const m=root.firstElementChild;
+  m.addEventListener('click',e=>{ if(e.target===m) closeModal(); });
+  m.querySelectorAll('[data-close]').forEach(b=>b.onclick=closeModal);
+  return m;
+}
+async function closeModal(){ await stopScanner(); $('#modalRoot').innerHTML=''; }
+const head = title => `<div class="sheet-head"><h2>${title}</h2><button class="btn ghost" data-close>Zavřít</button></div>`;
+
+function foodLine(f){
+  return `<div class="list-item" data-food="${f.id}">
+    <div><div>${esc(f.name)}${f.source==='off'?'<span class="tag">OFF</span>':''}</div>
+    <div class="small muted">${f.brand?esc(f.brand)+' · ':''}B ${r1(f.protein)} · S ${r1(f.carbs)} · T ${r1(f.fat)} / 100 g</div></div>
+    <div class="k" style="white-space:nowrap">${r0(f.kcal)} kcal</div></div>`;
+}
+function searchFoods(q){
+  const n=norm(q).trim();
+  if(!n){
+    const byId=new Map(S.foods.map(f=>[f.id,f]));
+    return S.recentIds.map(id=>byId.get(id)).filter(Boolean).slice(0,25);
+  }
+  const words=n.split(/\s+/);
+  return S.foods.filter(f=>{ const h=norm(f.name+' '+(f.brand||'')+' '+(f.barcode||'')); return words.every(w=>h.includes(w)); }).slice(0,50);
+}
+
+// Přidat jídlo: vyhledání potraviny
+function openAddFood(meal){
+  const m=openModal(`${head('Přidat – '+MEALS.find(x=>x[0]===meal)[1])}
+    <div class="row" style="margin-bottom:10px">
+      <input type="search" id="q" placeholder="Hledat potravinu…" autocomplete="off">
+      <button class="btn secondary" id="scanBtn" title="Naskenovat čárový kód">Sken</button>
+    </div>
+    <div id="scanArea" class="hidden" style="margin-bottom:10px"><div id="reader"></div></div>
+    <div class="card" style="padding:4px 14px"><div class="small muted" id="listHint" style="padding-top:8px"></div><div id="results"></div></div>
+    <button class="btn secondary block" id="newFood">+ Nová potravina</button>`);
+  const q=$('#q',m);
+  const draw=()=>{
+    const list=searchFoods(q.value);
+    $('#listHint',m).textContent = q.value.trim() ? (list.length?'Výsledky':'Nic nenalezeno – přidej novou potravinu') : (list.length?'Naposledy použité':'Zatím žádné potraviny – vyhledej nebo přidej novou');
+    $('#results',m).innerHTML = list.map(foodLine).join('');
+    m.querySelectorAll('[data-food]').forEach(r=>r.onclick=()=>openAmount(S.foods.find(f=>String(f.id)===r.dataset.food), meal));
+  };
+  q.oninput=draw; draw();
+  $('#newFood',m).onclick=()=>openFoodForm({ name:q.value.trim() }, f=>openAmount(f, meal));
+  $('#scanBtn',m).onclick=()=>startScan(m, code=>handleBarcode(code, f=>openAmount(f, meal)));
+}
+
+// Zadání množství
+function openAmount(food, meal, entry){
+  const g0 = entry ? Number(entry.grams) : (food.serving_g ? Number(food.serving_g) : 100);
+  const m=openModal(`${head(entry?'Upravit záznam':'Množství')}
+    <div class="card">
+      <div style="font-weight:600">${esc(food.name)}</div>
+      <div class="small muted">${food.brand?esc(food.brand)+' · ':''}${r0(food.kcal)} kcal / 100 g</div>
+    </div>
+    <div class="chips">
+      <button data-g="50">50 g</button><button data-g="100">100 g</button><button data-g="150">150 g</button><button data-g="200">200 g</button>
+      ${food.serving_g?`<button data-g="${Number(food.serving_g)}">1 porce (${r1(food.serving_g)} g)</button>`:''}
+    </div>
+    <div class="grid2">
+      <label class="f"><span>Množství (g)</span><input type="number" id="grams" inputmode="decimal" min="1" step="any" value="${g0}"></label>
+      <label class="f"><span>Jídlo</span><select id="meal">${MEALS.map(([k,l])=>`<option value="${k}" ${k===meal?'selected':''}>${l}</option>`).join('')}</select></label>
+    </div>
+    <div class="result" id="preview"></div>
+    <button class="btn block" id="save">${entry?'Uložit změny':'Přidat do jídelníčku'}</button>
+    ${entry?'<button class="btn danger block" id="del" style="margin-top:8px">Smazat záznam</button>':''}`);
+  const gi=$('#grams',m);
+  const calc=()=>{ const g=num(gi.value)||0, k=g/100;
+    return { grams:g, kcal:r1(food.kcal*k), protein:r1(food.protein*k), carbs:r1(food.carbs*k), fat:r1(food.fat*k) }; };
+  const upd=()=>{ const v=calc(); $('#preview',m).innerHTML=`<b>${r0(v.kcal)} kcal</b> · B ${v.protein} g · S ${v.carbs} g · T ${v.fat} g`; };
+  gi.oninput=upd; upd();
+  m.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ gi.value=b.dataset.g; upd(); });
+  $('#save',m).onclick=async()=>{
+    const v=calc(); if(!(v.grams>0)) return toast('Zadej množství v gramech');
+    const row={ ...v, meal:$('#meal',m).value, food_id:food.id??null, food_name:food.name+(food.brand?' ('+food.brand+')':'') };
+    let res;
+    if(entry){ if(entry.food_name) row.food_name=entry.food_name; res=await sb.from('meal_entries').update(row).eq('id',entry.id); }
+    else res=await sb.from('meal_entries').insert({ ...row, date:S.date });
+    if(res.error) return fail(res.error,'Uložení');
+    await closeModal(); await Promise.all([loadEntries(), loadRecent()]); renderToday(); toast(entry?'Uloženo':'Přidáno');
+  };
+  if(entry) $('#del',m).onclick=async()=>{
+    if(!confirm('Smazat tento záznam?')) return;
+    const { error }=await sb.from('meal_entries').delete().eq('id',entry.id);
+    if(error) return fail(error,'Smazání');
+    await closeModal(); await loadEntries(); renderToday();
+  };
+}
+function openEditEntry(e){
+  // hodnoty na 100 g dopočítáme ze záznamu, aby úprava fungovala i když potravina mezitím zmizela
+  const k=100/Number(e.grams);
+  const food = { id:e.food_id, name:e.food_name, kcal:e.kcal*k, protein:e.protein*k, carbs:e.carbs*k, fat:e.fat*k };
+  openAmount(food, e.meal, e);
+}
+
+// ---------- Skenování čárových kódů ----------
+async function startScan(m, onCode){
+  const area=$('#scanArea',m);
+  if(scanner){ await stopScanner(); area.classList.add('hidden'); return; }
+  if(!window.Html5Qrcode){ return manualBarcode(onCode); }
+  area.classList.remove('hidden');
+  try{
+    const F = Html5QrcodeSupportedFormats;
+    scanner = new Html5Qrcode('reader', { formatsToSupport:[F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E], verbose:false });
+    await scanner.start({ facingMode:'environment' }, { fps:10, qrbox:{ width:260, height:140 } }, async code=>{
+      await stopScanner(); area.classList.add('hidden'); onCode(code);
+    });
+  }catch(err){
+    await stopScanner(); area.classList.add('hidden');
+    toast('Kamera není dostupná – zadej kód ručně'); manualBarcode(onCode);
+  }
+}
+function manualBarcode(onCode){
+  const code=prompt('Čárový kód (číslice pod čárami):');
+  if(code && /^\d{6,14}$/.test(code.trim())) onCode(code.trim());
+}
+async function handleBarcode(code, then){
+  const own=S.foods.find(f=>f.barcode===code);
+  if(own){ toast('Nalezeno ve tvých potravinách'); return then(own); }
+  toast('Hledám v Open Food Facts…');
+  const off = await lookupOFF(code);
+  if(off){ toast('Nalezeno v Open Food Facts – zkontroluj hodnoty'); }
+  else toast('Kód není v databázi – vyplň hodnoty z obalu');
+  openFoodForm(off || { barcode:code }, then);
+}
+async function lookupOFF(code){
+  try{
+    const r=await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_cs,brands,nutriments,serving_quantity`);
+    if(!r.ok) return null;
+    const j=await r.json(); if(j.status!==1||!j.product) return null;
+    const p=j.product, n=p.nutriments||{};
+    let kcal=n['energy-kcal_100g']; if(kcal==null && n['energy-kj_100g']!=null) kcal=n['energy-kj_100g']/4.184;
+    return { name:(p.product_name_cs||p.product_name||'').trim(), brand:(p.brands||'').split(',')[0].trim(), barcode:code,
+      kcal:kcal!=null?r1(kcal):'', protein:n.proteins_100g??'', carbs:n.carbohydrates_100g??'', sugar:n.sugars_100g??'',
+      fat:n.fat_100g??'', fiber:n.fiber_100g??'', salt:n.salt_100g??'', serving_g:p.serving_quantity||'', source:'off' };
+  }catch(_){ return null; }
+}
+
+// ---------- Formulář potraviny ----------
+function openFoodForm(f, then){
+  const isEdit = !!f.id;
+  const v = k => f[k]==null ? '' : esc(f[k]);
+  const field = (k,l,extra='') => `<label class="f"><span>${l}</span><input type="number" id="f_${k}" inputmode="decimal" step="any" min="0" value="${v(k)}" ${extra}></label>`;
+  const m=openModal(`${head(isEdit?'Upravit potravinu':'Nová potravina')}
+    ${f.source==='off'?'<p class="small muted" style="margin-top:0">Data z Open Food Facts. Zkontroluj je podle obalu.</p>':''}
+    <label class="f"><span>Název *</span><input type="text" id="f_name" value="${v('name')}" required></label>
+    <div class="grid2">
+      <label class="f"><span>Značka</span><input type="text" id="f_brand" value="${v('brand')}"></label>
+      <label class="f"><span>Čárový kód</span><input type="text" id="f_barcode" inputmode="numeric" value="${v('barcode')}"></label>
+    </div>
+    <div class="small muted" style="margin:4px 0 8px">Nutriční hodnoty na 100 g</div>
+    <div class="grid2">${field('kcal','Energie (kcal) *')}${field('protein','Bílkoviny (g)')}</div>
+    <div class="grid2">${field('carbs','Sacharidy (g)')}${field('sugar','z toho cukry (g)')}</div>
+    <div class="grid2">${field('fat','Tuky (g)')}${field('fiber','Vláknina (g)')}</div>
+    <div class="grid2">${field('salt','Sůl (g)')}${field('serving_g','Porce (g)')}</div>
+    <button class="btn block" id="saveFood">${isEdit?'Uložit':'Uložit potravinu'}</button>
+    ${isEdit && f.created_by===S.user.id ? '<button class="btn danger block" id="delFood" style="margin-top:8px">Smazat potravinu</button>':''}
+    ${isEdit && f.created_by!==S.user.id ? '<p class="small muted">Tuto potravinu přidal jiný člen rodiny, upravit ji může jen on.</p>':''}
+    ${f.source==='off'?'<p class="small muted">Zdroj dat: Open Food Facts (openfoodfacts.org), licence ODbL.</p>':''}`);
+  if(isEdit && f.created_by!==S.user.id) m.querySelectorAll('input,#saveFood').forEach(x=>x.disabled=true);
+  $('#saveFood',m).onclick=async()=>{
+    const g=id=>$('#f_'+id,m).value;
+    const row={ name:g('name').trim(), brand:g('brand').trim()||null, barcode:g('barcode').trim()||null,
+      kcal:num(g('kcal')), protein:num(g('protein'))||0, carbs:num(g('carbs'))||0, sugar:num(g('sugar')),
+      fat:num(g('fat'))||0, fiber:num(g('fiber')), salt:num(g('salt')), serving_g:num(g('serving_g'))||null };
+    if(!row.name) return toast('Vyplň název');
+    if(row.kcal==null) return toast('Vyplň energii v kcal');
+    if(row.barcode && !/^\d{6,14}$/.test(row.barcode)) return toast('Čárový kód musí mít 6–14 číslic');
+    const macroKcal=row.protein*4+row.carbs*4+row.fat*9;
+    if(row.protein+row.carbs+row.fat>100.5) return toast('Bílkoviny + sacharidy + tuky nemůžou mít víc než 100 g na 100 g');
+    if(row.kcal>0 && Math.abs(macroKcal-row.kcal)/row.kcal>0.35 && !confirm(`Energie neodpovídá makrům (podle nich ~${r0(macroKcal)} kcal). Uložit i tak?`)) return;
+    let res;
+    if(isEdit) res=await sb.from('foods').update(row).eq('id',f.id).select().single();
+    else res=await sb.from('foods').insert({ ...row, source:f.source||'manual' }).select().single();
+    if(res.error){
+      if(res.error.code==='23505') return toast('Potravina s tímto čárovým kódem už existuje');
+      return fail(res.error,'Uložení potraviny');
+    }
+    await loadFoods();
+    const saved=S.foods.find(x=>x.id===res.data.id)||res.data;
+    if(then){ then(saved); } else { await closeModal(); renderFoods(); toast('Uloženo'); }
+  };
+  const del=$('#delFood',m);
+  if(del) del.onclick=async()=>{
+    if(!confirm('Smazat potravinu? Záznamy v jídelníčku zůstanou.')) return;
+    const { error }=await sb.from('foods').delete().eq('id',f.id);
+    if(error) return fail(error,'Smazání');
+    await closeModal(); await loadFoods(); renderFoods();
+  };
+}
+
+// ---------- Záložka Potraviny ----------
+let foodsQuery='';
+function renderFoods(){
+  const el=$('#tab-foods');
+  el.innerHTML=`
+    <div class="row" style="margin-bottom:10px">
+      <input type="search" id="fq" placeholder="Hledat v ${S.foods.length} potravinách…" value="${esc(foodsQuery)}" autocomplete="off">
+      <button class="btn secondary" id="fscan">Sken</button>
+    </div>
+    <div id="scanArea" class="hidden" style="margin-bottom:10px"><div id="reader"></div></div>
+    <button class="btn block" id="fnew" style="margin-bottom:12px">+ Nová potravina</button>
+    <div class="card" style="padding:4px 14px" id="flist"></div>
+    <p class="small muted">Databáze potravin je společná pro celou rodinu. Jídelníček a váhu vidí každý jen svoje.</p>`;
+  const draw=()=>{
+    const n=norm(foodsQuery).trim(), words=n.split(/\s+/);
+    const list = n ? S.foods.filter(f=>words.every(w=>norm(f.name+' '+(f.brand||'')+' '+(f.barcode||'')).includes(w))) : S.foods;
+    $('#flist').innerHTML = list.length ? list.slice(0,200).map(foodLine).join('') : '<p class="empty">Žádné potraviny. Přidej první nebo naskenuj čárový kód.</p>';
+    el.querySelectorAll('[data-food]').forEach(r=>r.onclick=()=>openFoodForm(S.foods.find(f=>String(f.id)===r.dataset.food)));
+  };
+  $('#fq').oninput=e=>{ foodsQuery=e.target.value; draw(); };
+  $('#fnew').onclick=()=>openFoodForm({});
+  $('#fscan').onclick=()=>startScan(el, code=>{
+    const own=S.foods.find(f=>f.barcode===code);
+    if(own) return openFoodForm(own);
+    handleBarcode(code, async()=>{ await closeModal(); renderFoods(); toast('Uloženo'); });
+  });
+  draw();
+}
+
+// ---------- Záložka Profil ----------
+function sparkline(ws){
+  const pts=[...ws].reverse().slice(-60); if(pts.length<2) return '';
+  const vals=pts.map(w=>Number(w.weight_kg)), mn=Math.min(...vals), mx=Math.max(...vals), span=(mx-mn)||1;
+  const W=300,H=70, xy=pts.map((w,i)=>[i/(pts.length-1)*W, H-5-(Number(w.weight_kg)-mn)/span*(H-10)]);
+  return `<svg class="spark" viewBox="0 0 ${W} ${H+10}" preserveAspectRatio="none">
+    <polyline fill="none" stroke="var(--brand)" stroke-width="2" vector-effect="non-scaling-stroke" points="${xy.map(p=>p.join(',')).join(' ')}"/>
+  </svg><div class="row between small muted"><span>${new Date(pts[0].date).toLocaleDateString('cs-CZ')}</span><span>min ${mn} · max ${mx} kg</span></div>`;
+}
+let profMode=null;
+function renderProfile(){
+  const p=S.profile||{}, w=latestWeight();
+  if(!profMode) profMode=p.target_mode||'manual';
+  const el=$('#tab-profile');
+  el.innerHTML=`
+  <div class="card">
+    <h2>Denní cíl</h2>
+    <div class="seg"><button data-mode="manual" class="${profMode==='manual'?'on':''}">Zadám sám</button><button data-mode="auto" class="${profMode==='auto'?'on':''}">Dopočítat</button></div>
+    <div id="modeManual" class="${profMode==='manual'?'':'hidden'}">
+      <div class="grid2">
+        <label class="f"><span>Energie (kcal)</span><input type="number" id="t_kcal" inputmode="numeric" value="${p.kcal_target??''}"></label>
+        <label class="f"><span>Bílkoviny (g)</span><input type="number" id="t_protein" inputmode="numeric" value="${p.protein_target??''}"></label>
+        <label class="f"><span>Sacharidy (g)</span><input type="number" id="t_carbs" inputmode="numeric" value="${p.carbs_target??''}"></label>
+        <label class="f"><span>Tuky (g)</span><input type="number" id="t_fat" inputmode="numeric" value="${p.fat_target??''}"></label>
+      </div>
+      <p class="small muted" id="manualCheck"></p>
+    </div>
+    <div id="modeAuto" class="${profMode==='auto'?'':'hidden'}">
+      <div class="grid2">
+        <label class="f"><span>Pohlaví</span><select id="a_sex"><option value="">–</option><option value="m" ${p.sex==='m'?'selected':''}>Muž</option><option value="f" ${p.sex==='f'?'selected':''}>Žena</option></select></label>
+        <label class="f"><span>Datum narození</span><input type="date" id="a_birth" value="${p.birth_date??''}"></label>
+        <label class="f"><span>Výška (cm)</span><input type="number" id="a_height" inputmode="decimal" value="${p.height_cm??''}"></label>
+        <label class="f"><span>Váha (kg)</span><input type="number" id="a_weight" inputmode="decimal" step="0.1" value="${w??''}" placeholder="poslední zápis"></label>
+      </div>
+      <label class="f"><span>Aktivita</span><select id="a_act">${ACTIVITY.map(([v,l])=>`<option value="${v}" ${Number(p.activity_level)===v?'selected':''}>${l}</option>`).join('')}</select></label>
+      <label class="f"><span>Cíl</span><select id="a_goal">${GOALS.map(([v,l])=>`<option value="${v}" ${p.goal===v?'selected':''}>${l}</option>`).join('')}</select></label>
+      <div class="result" id="autoRes"></div>
+    </div>
+    <button class="btn block" id="saveGoal">Uložit cíl</button>
+  </div>
+
+  <div class="card">
+    <h2>Váha</h2>
+    <div class="row">
+      <input type="date" id="w_date" value="${todayISO()}" style="flex:1.2">
+      <input type="number" id="w_val" inputmode="decimal" step="0.1" placeholder="kg" style="flex:1">
+      <button class="btn" id="w_save">Uložit</button>
+    </div>
+    <div style="margin-top:10px">${sparkline(S.weights)}</div>
+    <div>${S.weights.slice(0,7).map(x=>`<div class="list-item" data-w="${x.id}"><span>${new Date(x.date).toLocaleDateString('cs-CZ')}</span><span><b>${r1(x.weight_kg)} kg</b> <span class="muted small">✕</span></span></div>`).join('') || '<p class="empty">Zatím žádný zápis váhy.</p>'}</div>
+  </div>
+
+  <div class="card">
+    <h2>Účet</h2>
+    <label class="f"><span>Jméno v aplikaci</span><input type="text" id="u_name" value="${esc(p.display_name)}"></label>
+    <button class="btn secondary block" id="u_saveName" style="margin-bottom:12px">Uložit jméno</button>
+    <label class="f"><span>Nové heslo</span><input type="password" id="u_pass" autocomplete="new-password" minlength="8"></label>
+    <button class="btn secondary block" id="u_savePass" style="margin-bottom:12px">Změnit heslo</button>
+    <button class="btn danger block" id="logout">Odhlásit se</button>
+    <p class="small muted">${esc(S.user.email)}</p>
+  </div>`;
+
+  el.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{ profMode=b.dataset.mode; renderProfile(); });
+  const readAuto=()=>({ sex:$('#a_sex').value||null, birth_date:$('#a_birth').value||null, height_cm:num($('#a_height').value),
+    activity_level:Number($('#a_act').value), goal:$('#a_goal').value });
+  const autoW=()=>num($('#a_weight').value);
+  const drawAuto=()=>{
+    const res=computeTargets(readAuto(), autoW());
+    $('#autoRes').innerHTML = res
+      ? `<div>Doporučený příjem: <b>${res.kcal} kcal</b></div><div class="small">Bílkoviny ${res.protein} g · Sacharidy ${res.carbs} g · Tuky ${res.fat} g</div>
+         <div class="small muted" style="margin-top:4px">Bazální metabolismus ${res.bmr} kcal, celkový výdej ~${res.tdee} kcal (Mifflin–St Jeor). Je to odhad, podle vývoje váhy ho uprav.</div>`
+      : '<span class="small muted">Vyplň pohlaví, datum narození, výšku a váhu.</span>';
+  };
+  const drawManual=()=>{
+    const k=num($('#t_kcal').value), pr=num($('#t_protein').value)||0, c=num($('#t_carbs').value)||0, f=num($('#t_fat').value)||0;
+    const mk=pr*4+c*4+f*9;
+    $('#manualCheck').textContent = (pr||c||f) ? `Makra dávají ${r0(mk)} kcal${k?` (cíl ${k} kcal)`:''}.` : '';
+  };
+  if(profMode==='auto'){ el.querySelectorAll('#modeAuto input,#modeAuto select').forEach(x=>x.oninput=drawAuto); drawAuto(); }
+  else { el.querySelectorAll('#modeManual input').forEach(x=>x.oninput=drawManual); drawManual(); }
+
+  $('#saveGoal').onclick=async()=>{
+    let row;
+    if(profMode==='auto'){
+      const a=readAuto(), wt=autoW(), res=computeTargets(a,wt);
+      if(!res) return toast('Vyplň všechny údaje pro výpočet');
+      row={ ...a, target_mode:'auto', kcal_target:res.kcal, protein_target:res.protein, carbs_target:res.carbs, fat_target:res.fat };
+      if(wt && wt!==latestWeight()){
+        const { error }=await sb.from('weight_log').upsert({ user_id:S.user.id, date:todayISO(), weight_kg:wt }, { onConflict:'user_id,date' });
+        if(error) return fail(error,'Váha');
+        await loadWeights();
+      }
+    } else {
+      const k=num($('#t_kcal').value);
+      if(!k) return toast('Zadej aspoň energii v kcal');
+      row={ target_mode:'manual', kcal_target:r0(k), protein_target:num($('#t_protein').value)!=null?r0(num($('#t_protein').value)):null,
+        carbs_target:num($('#t_carbs').value)!=null?r0(num($('#t_carbs').value)):null, fat_target:num($('#t_fat').value)!=null?r0(num($('#t_fat').value)):null };
+    }
+    const { data, error }=await sb.from('profiles').update({ ...row, updated_at:new Date().toISOString() }).eq('user_id',S.user.id).select().single();
+    if(error) return fail(error,'Uložení cíle');
+    S.profile=data; renderProfile(); toast('Cíl uložen');
+  };
+  $('#w_save').onclick=async()=>{
+    const v=num($('#w_val').value), d=$('#w_date').value;
+    if(!v||!d) return toast('Zadej datum a váhu');
+    const { error }=await sb.from('weight_log').upsert({ user_id:S.user.id, date:d, weight_kg:v }, { onConflict:'user_id,date' });
+    if(error) return fail(error,'Váha');
+    await loadWeights(); renderProfile(); toast('Váha uložena');
+  };
+  el.querySelectorAll('[data-w]').forEach(r=>r.onclick=async()=>{
+    if(!confirm('Smazat tento zápis váhy?')) return;
+    const { error }=await sb.from('weight_log').delete().eq('id',r.dataset.w);
+    if(error) return fail(error,'Smazání');
+    await loadWeights(); renderProfile();
+  });
+  $('#u_saveName').onclick=async()=>{
+    const { data, error }=await sb.from('profiles').update({ display_name:$('#u_name').value.trim()||null }).eq('user_id',S.user.id).select().single();
+    if(error) return fail(error,'Uložení'); S.profile=data; renderAll(); toast('Uloženo');
+  };
+  $('#u_savePass').onclick=async()=>{
+    const pw=$('#u_pass').value; if(pw.length<8) return toast('Heslo musí mít aspoň 8 znaků');
+    const { error }=await sb.auth.updateUser({ password:pw });
+    if(error) return fail(error,'Změna hesla'); $('#u_pass').value=''; toast('Heslo změněno');
+  };
+  $('#logout').onclick=async()=>{ await sb.auth.signOut(); S.user=null; location.reload(); };
+}
+
+// Po návratu do aplikace (z pozadí na iPhonu) přepni na dnešek, pokud mezitím uběhla půlnoc
+let lastDay=todayISO();
+document.addEventListener('visibilitychange', async()=>{
+  if(document.visibilityState==='visible' && S.user && todayISO()!==lastDay){
+    if(S.date===lastDay) S.date=todayISO();
+    lastDay=todayISO(); await loadEntries(); render(S.tab);
+  }
+});
+</script>
+</body>
+</html>
