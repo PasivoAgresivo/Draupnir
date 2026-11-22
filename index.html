@@ -88,6 +88,22 @@ nav.tabs button.active{color:var(--brand);font-weight:600}
 .login .logo{width:64px;height:64px;border-radius:16px;display:block;margin:0 auto 12px}
 .empty{color:var(--muted);font-size:14px;padding:4px 0}
 .spark{width:100%;height:80px}
+/* volba způsobu přidání */
+.choice{display:block;width:100%;text-align:left;border:1px solid var(--line);background:#fff;border-radius:14px;padding:14px;margin-bottom:10px;cursor:pointer}
+.choice b{display:block;font-size:16px;margin-bottom:3px}
+.choice span{font-size:13px;color:var(--muted)}
+/* průvodce kamerou */
+.cam{position:relative;width:100%;height:36vh;min-height:220px;background:#000;border-radius:12px;overflow:hidden;margin-bottom:10px}
+.cam video{width:100%;height:100%;object-fit:cover;display:block}
+.cam .frame{position:absolute;border:3px solid #fbbf24;border-radius:8px;box-shadow:0 0 0 2000px rgba(0,0,0,.38);transition:all .2s}
+.cam .camMsg{position:absolute;left:0;right:0;bottom:8px;text-align:center;color:#fff;font-size:13px;text-shadow:0 1px 2px #000}
+.wz-steps{display:flex;gap:4px;margin:2px 0 10px}
+.wz-steps i{flex:1;height:4px;border-radius:2px;background:var(--line)}
+.wz-steps i.done{background:var(--brand)} .wz-steps i.cur{background:#fbbf24}
+.wz-read{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.wz-read input{font-size:22px;font-weight:700;text-align:center}
+.wz-read .unit{font-weight:600;color:var(--muted);min-width:36px}
+.wz-sum{font-size:13px;color:var(--muted);margin-top:10px;line-height:1.6}
 </style>
 </head>
 <body>
@@ -317,7 +333,7 @@ function openModal(html){
   m.querySelectorAll('[data-close]').forEach(b=>b.onclick=closeModal);
   return m;
 }
-async function closeModal(){ await stopScanner(); $('#modalRoot').innerHTML=''; }
+async function closeModal(){ await stopScanner(); wizardStop(); $('#modalRoot').innerHTML=''; }
 const head = title => `<div class="sheet-head"><h2>${title}</h2><button class="btn ghost" data-close>Zavřít</button></div>`;
 
 function foodLine(f){
@@ -354,7 +370,7 @@ function openAddFood(meal){
     m.querySelectorAll('[data-food]').forEach(r=>r.onclick=()=>openAmount(S.foods.find(f=>String(f.id)===r.dataset.food), meal));
   };
   q.oninput=draw; draw();
-  $('#newFood',m).onclick=()=>openFoodForm({ name:q.value.trim() }, f=>openAmount(f, meal));
+  $('#newFood',m).onclick=()=>chooseNewFood({ name:q.value.trim() }, f=>openAmount(f, meal));
   $('#scanBtn',m).onclick=()=>startScan(m, code=>handleBarcode(code, f=>openAmount(f, meal)));
 }
 
@@ -446,9 +462,9 @@ async function handleBarcode(code, then){
   if(own){ toast('Nalezeno ve tvých potravinách'); return then(own); }
   toast('Hledám v Open Food Facts…');
   const off = await lookupOFF(code);
-  if(off){ toast('Nalezeno v Open Food Facts – zkontroluj hodnoty'); }
-  else toast('Kód není v databázi – vyplň hodnoty z obalu');
-  openFoodForm(off || { barcode:code }, then);
+  if(off && off.kcal!==''){ toast('Nalezeno v Open Food Facts – zkontroluj hodnoty'); return openFoodForm(off, then); }
+  toast('Kód není v databázi – přidej potravinu');
+  chooseNewFood(off || { barcode:code }, then);
 }
 async function lookupOFF(code){
   try{
@@ -459,8 +475,293 @@ async function lookupOFF(code){
     let kcal=n['energy-kcal_100g']; if(kcal==null && n['energy-kj_100g']!=null) kcal=n['energy-kj_100g']/4.184;
     return { name:(p.product_name_cs||p.product_name||'').trim(), brand:(p.brands||'').split(',')[0].trim(), barcode:code,
       kcal:kcal!=null?r1(kcal):'', protein:n.proteins_100g??'', carbs:n.carbohydrates_100g??'', sugar:n.sugars_100g??'',
-      fat:n.fat_100g??'', fiber:n.fiber_100g??'', salt:n.salt_100g??'', serving_g:p.serving_quantity||'', source:'off' };
+      fat:n.fat_100g??'', saturated_fat:n['saturated-fat_100g']??'', fiber:n.fiber_100g??'', salt:n.salt_100g??'', serving_g:p.serving_quantity||'', source:'off' };
   }catch(_){ return null; }
+}
+
+// ---------- Volba: ručně, nebo z obalu kamerou ----------
+function chooseNewFood(prefill, then){
+  const m=openModal(`${head('Nová potravina')}
+    ${prefill.barcode?`<p class="small muted" style="margin-top:0">Čárový kód ${esc(prefill.barcode)}</p>`:''}
+    <button class="choice" id="chCam"><b>Načíst z obalu kamerou</b><span>${prefill.barcode?'':'Nejdřív čárový kód, pak '}hodnoty jedna po druhé ve stejném pořadí jako na obalu. Na konci vše zkontroluješ.</span></button>
+    <button class="choice" id="chManual"><b>Zadat ručně</b><span>Opíšeš hodnoty z obalu do formuláře.</span></button>`);
+  $('#chManual',m).onclick=()=>openFoodForm(prefill, then);
+  $('#chCam',m).onclick=()=>openWizard(prefill, then);
+}
+
+// ---------- Průvodce: čtení obalu kamerou ----------
+// Pořadí podle nařízení EU 1169/2011: energie, tuky, nasycené, sacharidy, cukry, bílkoviny, sůl
+const WZ_STEPS = [
+  { key:'barcode', type:'barcode', title:'Čárový kód', hint:'Zamiř na čárový kód. Načte se sám.' },
+  { key:'kcal', type:'value', title:'Energie', hint:'Zamiř na hodnotu v kcal, ve sloupci na 100 g.', unit:'kcal', required:true },
+  { key:'fat', type:'value', title:'Tuky', hint:'Zamiř na řádek Tuky, sloupec na 100 g.', unit:'g' },
+  { key:'saturated_fat', type:'value', title:'z toho nasycené mastné kyseliny', hint:'Hodnota pod tuky, sloupec na 100 g.', unit:'g' },
+  { key:'carbs', type:'value', title:'Sacharidy', hint:'Zamiř na řádek Sacharidy, sloupec na 100 g.', unit:'g' },
+  { key:'sugar', type:'value', title:'z toho cukry', hint:'Hodnota pod sacharidy, sloupec na 100 g.', unit:'g' },
+  { key:'protein', type:'value', title:'Bílkoviny', hint:'Zamiř na řádek Bílkoviny, sloupec na 100 g.', unit:'g' },
+  { key:'salt', type:'value', title:'Sůl', hint:'Poslední řádek tabulky, sloupec na 100 g.', unit:'g' },
+  { key:'name', type:'name', title:'Název', hint:'Napiš název výrobku. Na iPhonu můžeš v políčku použít i Skenovat text.' }
+];
+const WZ_FRAME = { barcode:{l:8,t:22,w:84,h:56}, value:{l:14,t:41,w:72,h:18} };   // rámeček v % náhledu
+let WZ=null;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+function loadScript(src){
+  return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('Nepodařilo se načíst knihovnu')); document.head.appendChild(s); });
+}
+let ocrWorker=null, ocrLoading=null;
+async function getOcr(){
+  if(ocrWorker) return ocrWorker;
+  if(!ocrLoading) ocrLoading=(async()=>{
+    if(!window.Tesseract) await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
+    const w=await Tesseract.createWorker('eng');
+    await w.setParameters({ tessedit_pageseg_mode:'7' });   // jeden řádek textu
+    ocrWorker=w; return w;
+  })();
+  try{ return await ocrLoading; } catch(e){ ocrLoading=null; throw e; }
+}
+
+// Převod přečteného textu na číslo pro daný krok
+function parseReading(text, key){
+  let t = String(text||'').replace(/[|]/g,'/').replace(/\s+/g,' ').trim();
+  if(!t) return null;
+  const max = key==='kcal' ? 900 : 100;
+  if(key==='kcal'){
+    t = t.replace(/(\d) (\d{3})(?!\d)/g,'$1$2');                 // "1 520 kJ" -> "1520 kJ"
+    const nums=[]; const re=/(\d{1,4}(?:[.,]\d{1,3})?)/g; let m;
+    while((m=re.exec(t))) nums.push({ v:parseFloat(m[1].replace(',','.')), end:re.lastIndex });
+    if(!nums.length) return null;
+    let v=null;
+    const k=t.match(/(\d{1,4}(?:[.,]\d)?)\s*k\s*c\s*a?\s*l/i);
+    if(k) v=parseFloat(k[1].replace(',','.'));
+    if(v==null && nums.length>=2){
+      outer: for(let i=0;i<nums.length;i++) for(let j=i+1;j<nums.length;j++){
+        const a=nums[i].v, b=nums[j].v; if(!a||!b) continue;
+        if(a/b>3.9 && a/b<4.4){ v=b; break outer; }                 // kJ / kcal
+        if(b/a>3.9 && b/a<4.4){ v=a; break outer; }
+      }
+    }
+    if(v==null && nums.length===1){
+      const after=t.slice(nums[0].end, nums[0].end+3);
+      v = /k?J/.test(after) && !/c/i.test(after) ? Math.round(nums[0].v/4.184) : nums[0].v;
+    }
+    if(v==null) v=nums.find(n=>n.v<=max)?.v ?? null;
+    return (v==null||isNaN(v)||v<0||v>max) ? null : Math.round(v);
+  }
+  // Gramy: první číslo na řádku = sloupec na 100 g.
+  // Písmeno „g“ za číslem se občas přečte jako 9, 8 nebo 2 a desetinná čárka se může ztratit.
+  const m=t.match(/(\d+(?:\s?[.,]\s?\d+)?)/);
+  if(!m) return null;
+  let s=m[1].replace(/\s/g,'').replace('.',',');
+  let [ip,dp]=s.split(',');
+  if(dp!==undefined){
+    if(dp.length>=2 && /[289]$/.test(dp) && !(key==='salt' && ip==='0')) dp=dp.slice(0,-1);
+    if(dp.length>2) dp=dp.slice(0,2);
+  } else {
+    if(ip.length>=2 && ip[0]==='0'){ dp=ip.slice(1); ip='0'; }            // "01" -> 0,1
+    else if(Number(ip)>max && /[89]$/.test(ip)) ip=ip.slice(0,-1);          // "459" -> 45
+    if(Number(ip)>max && ip.length===3){ dp=ip.slice(2); ip=ip.slice(0,2); } // "125" -> 12,5
+  }
+  const v=parseFloat(ip+(dp?'.'+dp:''));
+  if(isNaN(v)||v<0||v>max) return null;
+  return Math.round(v*100)/100;
+}
+
+function wizardStop(){
+  if(!WZ) return;
+  WZ.active=false;
+  if(WZ.stream) WZ.stream.getTracks().forEach(t=>t.stop());
+  WZ=null;
+}
+
+async function openWizard(prefill, then){
+  wizardStop();
+  const steps = WZ_STEPS.filter(s=>!(s.key==='barcode' && prefill.barcode));
+  const m=openModal(`${head('Načíst z obalu')}
+    <div class="wz-steps">${steps.map(()=>'<i></i>').join('')}</div>
+    <div style="font-weight:700;font-size:17px" id="wzTitle"></div>
+    <div class="small muted" id="wzHint" style="margin:2px 0 8px"></div>
+    <div class="cam" id="wzCam"><video id="wzVideo" playsinline muted autoplay></video><div class="frame" id="wzFrame"></div><div class="camMsg" id="wzMsg"></div></div>
+    <div id="wzHidden" style="display:none"></div>
+    <div class="wz-read" id="wzReadRow">
+      <input type="text" id="wzVal" inputmode="decimal" autocomplete="off">
+      <span class="unit" id="wzUnit"></span>
+    </div>
+    <div id="wzNameRow" class="hidden">
+      <label class="f"><span>Název *</span><input type="text" id="wzName" value="${esc(prefill.name||'')}"></label>
+      <label class="f"><span>Značka</span><input type="text" id="wzBrand" value="${esc(prefill.brand||'')}"></label>
+    </div>
+    <div class="row">
+      <button class="btn ghost" id="wzBack">Zpět</button>
+      <button class="btn secondary" id="wzSkip" style="flex:1">Přeskočit</button>
+      <button class="btn" id="wzOk" style="flex:1.4">Potvrdit</button>
+    </div>
+    <div class="wz-sum" id="wzSum"></div>`);
+  WZ={ active:true, steps, i:0, vals:{ barcode:prefill.barcode||null }, reads:[], edited:false, busy:false, stream:null, then, prefill, m };
+  const video=$('#wzVideo',m), valIn=$('#wzVal',m);
+  valIn.oninput=()=>{ if(WZ) WZ.edited=true; };
+
+  try{
+    WZ.stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment', width:{ideal:1920}, height:{ideal:1080} }, audio:false });
+    if(!WZ){ return; }
+    video.srcObject=WZ.stream; await video.play().catch(()=>{});
+  }catch(err){
+    toast('Kamera není dostupná – hodnoty zadej ručně');
+    $('#wzMsg',m).textContent='Kamera není dostupná';
+  }
+
+  $('#wzBack',m).onclick=()=>{ if(WZ.i>0){ WZ.i--; wzShow(); } };
+  $('#wzSkip',m).onclick=()=>{ const st=WZ.steps[WZ.i]; if(st.key==='kcal') return toast('Energie je povinná – zadej ji ručně'); WZ.vals[st.key]=null; wzNext(); };
+  $('#wzOk',m).onclick=async()=>{
+    const st=WZ.steps[WZ.i];
+    if(st.type==='barcode'){
+      const code=valIn.value.replace(/\s/g,'');
+      if(!/^\d{6,14}$/.test(code)) return toast('Zadej čárový kód (6–14 číslic) nebo dej Přeskočit');
+      return wzBarcode(code);
+    }
+    if(st.type==='value'){
+      const v=num(valIn.value);
+      if(v==null) return st.required ? toast('Zadej hodnotu') : toast('Zadej hodnotu, nebo dej Přeskočit');
+      if(v<0 || v>(st.key==='kcal'?900:100)) return toast('Hodnota je mimo rozsah na 100 g');
+      WZ.vals[st.key]=v; return wzNext();
+    }
+    if(st.type==='name'){
+      const name=$('#wzName',m).value.trim();
+      if(!name) return toast('Vyplň název');
+      const f={ ...WZ.prefill, ...WZ.vals, name, brand:$('#wzBrand',m).value.trim(), source:'photo' };
+      const then=WZ.then; wizardStop();
+      return openFoodForm(f, then);
+    }
+  };
+  wzShow();
+  wzLoop(video);
+}
+
+function wzShow(){
+  const m=WZ.m, st=WZ.steps[WZ.i];
+  m.querySelectorAll('.wz-steps i').forEach((el,i)=>{ el.className = i<WZ.i?'done':(i===WZ.i?'cur':''); });
+  $('#wzTitle',m).textContent=`${WZ.i+1}/${WZ.steps.length} · ${st.title}`;
+  $('#wzHint',m).textContent=st.hint;
+  const fr=WZ_FRAME[st.type==='barcode'?'barcode':'value'], f=$('#wzFrame',m);
+  Object.assign(f.style,{ left:fr.l+'%', top:fr.t+'%', width:fr.w+'%', height:fr.h+'%' });
+  $('#wzCam',m).classList.toggle('hidden', st.type==='name');
+  $('#wzReadRow',m).classList.toggle('hidden', st.type==='name');
+  $('#wzNameRow',m).classList.toggle('hidden', st.type!=='name');
+  $('#wzBack',m).disabled = WZ.i===0;
+  $('#wzSkip',m).classList.toggle('hidden', st.key==='kcal' || st.type==='name');
+  $('#wzOk',m).textContent = st.type==='name' ? 'Ke kontrole' : 'Potvrdit';
+  $('#wzUnit',m).textContent = st.unit || '';
+  const vi=$('#wzVal',m);
+  vi.placeholder = st.type==='barcode' ? 'čeká na kód…' : 'čtu…';
+  vi.inputMode = st.type==='barcode' ? 'numeric' : 'decimal';
+  const prev = st.type==='barcode' ? WZ.vals.barcode : WZ.vals[st.key];
+  vi.value = prev!=null ? String(prev).replace('.',',') : '';
+  WZ.edited = prev!=null; WZ.reads=[];
+  $('#wzMsg',m).textContent = st.type==='barcode' ? 'Hledám čárový kód…' : '';
+  const L=[['kcal','Energie','kcal'],['fat','Tuky','g'],['saturated_fat','nasycené','g'],['carbs','Sacharidy','g'],['sugar','cukry','g'],['protein','Bílkoviny','g'],['salt','Sůl','g']];
+  const got=L.filter(([k])=>WZ.vals[k]!=null).map(([k,l,u])=>`${l} <b>${String(WZ.vals[k]).replace('.',',')}</b> ${u}`);
+  $('#wzSum',m).innerHTML = (WZ.vals.barcode?`Kód ${esc(WZ.vals.barcode)}<br>`:'') + got.join(' · ');
+}
+function wzNext(){ if(WZ.i<WZ.steps.length-1){ WZ.i++; wzShow(); } }
+
+async function wzBarcode(code){
+  WZ.vals.barcode=code;
+  const own=S.foods.find(f=>f.barcode===code);
+  if(own){ const then=WZ.then; toast('Tahle potravina už v databázi je'); wizardStop(); return then ? then(own) : openFoodForm(own); }
+  $('#wzMsg',WZ.m).textContent='Hledám v Open Food Facts…';
+  const off=await lookupOFF(code);
+  if(!WZ) return;
+  if(off && off.kcal!==''){ const then=WZ.then; toast('Nalezeno v Open Food Facts – zkontroluj hodnoty'); wizardStop(); return openFoodForm({ ...off, name:off.name||WZ.prefill.name||'' }, then); }
+  if(off){ if(off.name && !WZ.prefill.name) WZ.prefill.name=off.name; if(off.brand) WZ.prefill.brand=off.brand; }
+  toast('Kód není v databázi – načteme hodnoty z obalu');
+  wzNext();
+}
+
+// Výřez rámečku z videa (video je zobrazené přes object-fit: cover)
+function wzCrop(video, fr, targetH){
+  const cw=video.clientWidth, ch=video.clientHeight, vw=video.videoWidth, vh=video.videoHeight;
+  const sc=Math.max(cw/vw, ch/vh), ox=(vw*sc-cw)/2, oy=(vh*sc-ch)/2;
+  const sx=(fr.l/100*cw+ox)/sc, sy=(fr.t/100*ch+oy)/sc, sw=(fr.w/100*cw)/sc, sh=(fr.h/100*ch)/sc;
+  const k = targetH ? targetH/sh : Math.min(1, 900/sw);
+  const c=document.createElement('canvas'); c.width=Math.round(sw*k); c.height=Math.round(sh*k);
+  const g=c.getContext('2d'); g.drawImage(video, sx,sy,sw,sh, 0,0,c.width,c.height);
+  return c;
+}
+// Šedá + roztažení kontrastu (pomáhá u lesklých a světlých obalů)
+function wzEnhance(c){
+  const g=c.getContext('2d'), d=g.getImageData(0,0,c.width,c.height), p=d.data, hist=new Array(256).fill(0), L=new Uint8Array(p.length/4);
+  for(let i=0,j=0;i<p.length;i+=4,j++){ const y=(p[i]*299+p[i+1]*587+p[i+2]*114)/1000|0; L[j]=y; hist[y]++; }
+  const n=L.length; let lo=0,hi=255,acc=0;
+  for(let i=0;i<256;i++){ acc+=hist[i]; if(acc>n*0.02){ lo=i; break; } }
+  acc=0; for(let i=255;i>=0;i--){ acc+=hist[i]; if(acc>n*0.02){ hi=i; break; } }
+  const span=Math.max(1,hi-lo);
+  for(let j=0;j<n;j++) L[j]=Math.max(0,Math.min(255,(L[j]-lo)*255/span));
+  // Odstranění čar tabulky a ponechání jen řádku textu nejblíž středu rámečku
+  const W=c.width, H=c.height, dark=new Float32Array(H);
+  for(let y=0;y<H;y++){ let k=0; for(let x=0;x<W;x++) if(L[y*W+x]<110) k++; dark[y]=k/W; }
+  for(let y=0;y<H;y++) if(dark[y]>0.55){ for(let x=0;x<W;x++) L[y*W+x]=255; dark[y]=0; }   // vodorovné čáry
+  const ink=y=>dark[y]>0.008;
+  const bands=[]; let s=-1;
+  for(let y=0;y<=H;y++){ if(y<H && ink(y)){ if(s<0) s=y; } else if(s>=0){ if(y-s>=4) bands.push([s,y]); s=-1; } }
+  let y0=0, y1=H;
+  if(bands.length){
+    const mid=H/2;
+    const best=bands.reduce((a,b)=>{ const da=Math.abs((a[0]+a[1])/2-mid), db=Math.abs((b[0]+b[1])/2-mid); return db<da?b:a; });
+    const pad=Math.round((best[1]-best[0])*0.35)+3; y0=Math.max(0,best[0]-pad); y1=Math.min(H,best[1]+pad);
+  }
+  const out=document.createElement('canvas'); out.width=W+40; out.height=(y1-y0)+40;
+  const og=out.getContext('2d'); og.fillStyle='#fff'; og.fillRect(0,0,out.width,out.height);
+  const od=og.getImageData(0,0,out.width,out.height), q=od.data;
+  for(let y=y0;y<y1;y++) for(let x=0;x<W;x++){ const v=L[y*W+x], o=((y-y0+20)*out.width+(x+20))*4; q[o]=q[o+1]=q[o+2]=v; q[o+3]=255; }
+  og.putImageData(od,0,0); return out;
+}
+
+async function wzLoop(video){
+  let bc=null, ocrReady=false;
+  while(WZ && WZ.active){
+    const st=WZ.steps[WZ.i];
+    if(!video.videoWidth || WZ.busy || st.type==='name'){ await sleep(250); continue; }
+    WZ.busy=true;
+    try{
+      if(st.type==='barcode' && window.Html5Qrcode){
+        if(!bc){ const F=Html5QrcodeSupportedFormats; bc=new Html5Qrcode('wzHidden',{ formatsToSupport:[F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E], verbose:false }); }
+        const c=wzCrop(video, WZ_FRAME.barcode);
+        const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.85));
+        try{
+          const code=await bc.scanFile(new File([blob],'kod.jpg',{type:'image/jpeg'}), false);
+          if(WZ && WZ.steps[WZ.i].type==='barcode' && /^\d{6,14}$/.test(code)){ $('#wzVal',WZ.m).value=code; WZ.busy=false; await wzBarcode(code); continue; }
+        }catch(_){ /* kód zatím nenalezen */ }
+      }
+      if(st.type==='value'){
+        if(!ocrReady){ $('#wzMsg',WZ.m).textContent='Připravuji čtení čísel (poprvé to chvíli trvá)…'; }
+        const w=await getOcr();
+        if(!WZ) break;
+        if(!ocrReady){ ocrReady=true; $('#wzMsg',WZ.m).textContent=''; }
+        const key=WZ.steps[WZ.i].key;
+        await w.setParameters({ tessedit_char_whitelist: key==='kcal' ? '0123456789,.kcalJ/ ' : '0123456789,.<g ' });
+        const c=wzEnhance(wzCrop(video, WZ_FRAME.value, 165));
+        const { data } = await w.recognize(c);
+        if(!WZ || WZ.steps[WZ.i].key!==key) { if(WZ) WZ.busy=false; continue; }
+        const v=parseReading(data.text, key);
+        if(v!=null){
+          WZ.reads.push(v); if(WZ.reads.length>5) WZ.reads.shift();
+          const cnt=WZ.reads.filter(x=>x===v).length;
+          const stable = cnt>=2;
+          if(!WZ.edited) $('#wzVal',WZ.m).value=String(v).replace('.',',');
+          $('#wzMsg',WZ.m).textContent = stable ? '✓ Přečteno – zkontroluj a potvrď' : 'Čtu… drž telefon v klidu';
+        } else {
+          $('#wzMsg',WZ.m).textContent = 'Nevidím číslo – posuň rámeček na hodnotu';
+        }
+      }
+    }catch(err){
+      console.error(err);
+      if(WZ) $('#wzMsg',WZ.m).textContent='Čtení se nepodařilo – zadej hodnotu ručně';
+      if(WZ) WZ.busy=false;
+      await sleep(1500);
+    }
+    if(WZ) WZ.busy=false;
+    await sleep(st.type==='barcode'?250:300);
+  }
 }
 
 // ---------- Formulář potraviny ----------
@@ -470,16 +771,18 @@ function openFoodForm(f, then){
   const field = (k,l,extra='') => `<label class="f"><span>${l}</span><input type="number" id="f_${k}" inputmode="decimal" step="any" min="0" value="${v(k)}" ${extra}></label>`;
   const m=openModal(`${head(isEdit?'Upravit potravinu':'Nová potravina')}
     ${f.source==='off'?'<p class="small muted" style="margin-top:0">Data z Open Food Facts. Zkontroluj je podle obalu.</p>':''}
+    ${f.source==='photo'&&!isEdit?'<p class="small" style="margin-top:0;color:var(--warn)">Hodnoty přečtené kamerou. Porovnej je s obalem, hlavně desetinné čárky.</p>':''}
     ${f.source==='base'?'<p class="small muted" style="margin-top:0">Základní potravina s průměrnými hodnotami. U konkrétního výrobku se údaje na obalu můžou lišit.</p>':''}
     <label class="f"><span>Název *</span><input type="text" id="f_name" value="${v('name')}" required></label>
     <div class="grid2">
       <label class="f"><span>Značka</span><input type="text" id="f_brand" value="${v('brand')}"></label>
       <label class="f"><span>Čárový kód</span><input type="text" id="f_barcode" inputmode="numeric" value="${v('barcode')}"></label>
     </div>
-    <div class="small muted" style="margin:4px 0 8px">Nutriční hodnoty na 100 g</div>
-    <div class="grid2">${field('kcal','Energie (kcal) *')}${field('protein','Bílkoviny (g)')}</div>
+    <div class="small muted" style="margin:4px 0 8px">Nutriční hodnoty na 100 g (ve stejném pořadí jako na obalu)</div>
+    <div class="grid2">${field('kcal','Energie (kcal) *')}<div></div></div>
+    <div class="grid2">${field('fat','Tuky (g)')}${field('saturated_fat','z toho nasycené (g)')}</div>
     <div class="grid2">${field('carbs','Sacharidy (g)')}${field('sugar','z toho cukry (g)')}</div>
-    <div class="grid2">${field('fat','Tuky (g)')}${field('fiber','Vláknina (g)')}</div>
+    <div class="grid2">${field('fiber','Vláknina (g)')}${field('protein','Bílkoviny (g)')}</div>
     <div class="grid2">${field('salt','Sůl (g)')}${field('serving_g','Porce (g)')}</div>
     <button class="btn block" id="saveFood">${isEdit?'Uložit':'Uložit potravinu'}</button>
     ${isEdit && f.created_by===S.user.id ? '<button class="btn danger block" id="delFood" style="margin-top:8px">Smazat potravinu</button>':''}
@@ -490,7 +793,9 @@ function openFoodForm(f, then){
     const g=id=>$('#f_'+id,m).value;
     const row={ name:g('name').trim(), brand:g('brand').trim()||null, barcode:g('barcode').trim()||null,
       kcal:num(g('kcal')), protein:num(g('protein'))||0, carbs:num(g('carbs'))||0, sugar:num(g('sugar')),
-      fat:num(g('fat'))||0, fiber:num(g('fiber')), salt:num(g('salt')), serving_g:num(g('serving_g'))||null };
+      fat:num(g('fat'))||0, saturated_fat:num(g('saturated_fat')), fiber:num(g('fiber')), salt:num(g('salt')), serving_g:num(g('serving_g'))||null };
+    if(row.saturated_fat!=null && row.saturated_fat>row.fat) return toast('Nasycené tuky nemůžou být vyšší než tuky celkem');
+    if(row.sugar!=null && row.sugar>row.carbs) return toast('Cukry nemůžou být vyšší než sacharidy celkem');
     if(!row.name) return toast('Vyplň název');
     if(row.kcal==null) return toast('Vyplň energii v kcal');
     if(row.barcode && !/^\d{6,14}$/.test(row.barcode)) return toast('Čárový kód musí mít 6–14 číslic');
@@ -537,7 +842,7 @@ function renderFoods(){
     el.querySelectorAll('[data-food]').forEach(r=>r.onclick=()=>openFoodForm(S.foods.find(f=>String(f.id)===r.dataset.food)));
   };
   $('#fq').oninput=e=>{ foodsQuery=e.target.value; draw(); };
-  $('#fnew').onclick=()=>openFoodForm({});
+  $('#fnew').onclick=()=>chooseNewFood({}, null);
   $('#fscan').onclick=()=>startScan(el, code=>{
     const own=S.foods.find(f=>f.barcode===code);
     if(own) return openFoodForm(own);
