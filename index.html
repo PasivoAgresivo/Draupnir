@@ -90,7 +90,7 @@ nav.tabs button.fab svg{width:26px;height:26px}
 .kc small{font-family:Inter,sans-serif;font-size:12px;color:var(--muted);font-weight:500}
 .mac{display:flex;gap:10px;font-size:12px;color:#d8d0c2;flex-wrap:wrap}
 .mac b.p{color:var(--p)} .mac b.c{color:var(--c)} .mac b.f{color:var(--f)}
-.meal-empty{display:flex;align-items:center;gap:12px;width:100%;border:1.5px dashed #3a3328;background:none;color:var(--muted);border-radius:16px;padding:12px 14px;margin-bottom:8px;cursor:pointer;text-align:left}
+.meal-empty{display:flex;align-items:center;gap:12px;width:100%;border:1.5px dashed #3a3328;background:none;color:var(--muted);border-radius:16px;padding:16px 16px;margin-bottom:8px;cursor:pointer;text-align:left}
 .meal-actions{display:flex;gap:8px;margin-top:8px}
 .meal-actions button{flex:1;min-height:40px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--brand);font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
 .meal-actions svg{width:16px;height:16px}
@@ -325,13 +325,6 @@ const IC = {
   cam:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="13" rx="2"/><circle cx="12" cy="13.5" r="3.5"/><path d="M9 7l1.5-3h3L15 7"/></svg>',
   trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>'
 };
-const MEAL_IC = {
-  breakfast:['var(--kcal)','<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>'],
-  snack1:['var(--p)','<path d="M7 4h10l-1 16H8z"/><path d="M7 9h10"/>'],
-  lunch:['var(--c)','<path d="M4 13h16a8 8 0 01-16 0z"/><path d="M9 9c0-2 2-2 2-4M14 9c0-2 2-2 2-4"/>'],
-  snack2:['var(--p)','<circle cx="12" cy="13" r="7"/><path d="M12 6c0-2 1-3 3-3"/>'],
-  dinner:['var(--f)','<path d="M20 14A8 8 0 1110 4a6 6 0 0010 10z"/>']
-};
 const mealLabel = k => (MEALS.find(x=>x[0]===k)||[,''])[1];
 function defaultMeal(){ const h=new Date().getHours(); return h<10?'breakfast':h<12?'snack1':h<15?'lunch':h<18?'snack2':'dinner'; }
 const macLine = (p,c,f) => `<div class="mac"><span><b class="p">B</b> ${String(r1(p)).replace('.',',')}</span><span><b class="c">S</b> ${String(r1(c)).replace('.',',')}</span><span><b class="f">T</b> ${String(r1(f)).replace('.',',')}</span></div>`;
@@ -401,11 +394,10 @@ function renderToday(){
   </div>
   <div class="sec-head"><h3>Jídla</h3><span class="small muted">${MEALS.filter(([k])=>S.entries.some(e=>e.meal===k)).length} z ${MEALS.length}</span></div>`;
   for(const [key,label] of MEALS){
-    const list=S.entries.filter(e=>e.meal===key), ms=sums(list), [col,path]=MEAL_IC[key];
-    const ic=`<div class="meal-ic" style="color:${list.length?col:'var(--muted)'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${path}</svg></div>`;
-    if(!list.length){ html+=`<button class="meal-empty" data-add="${key}">${ic}<span style="flex:1;font-weight:600">${label}</span><span class="small">přidat</span></button>`; continue; }
+    const list=S.entries.filter(e=>e.meal===key), ms=sums(list);
+    if(!list.length){ html+=`<button class="meal-empty" data-add="${key}"><span style="flex:1;font-weight:600">${label}</span><span class="small" style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:16px;display:flex">${IC.plus}</span>přidat</span></button>`; continue; }
     html += `<div class="meal-card">
-      <div class="meal-top">${ic}<div style="flex:1;min-width:0"><div class="meal-name">${label}</div>${macLine(ms.protein,ms.carbs,ms.fat)}</div>${kc(ms.kcal)}</div>
+      <div class="meal-top"><div style="flex:1;min-width:0"><div class="meal-name">${label}</div>${macLine(ms.protein,ms.carbs,ms.fat)}</div>${kc(ms.kcal)}</div>
       <div style="margin-top:8px">${list.map(e=>`
         <div class="entry" data-id="${e.id}"><div class="n">${esc(e.food_name)} <span class="muted">· ${fmtNum(e.grams)} g</span></div><div class="k">${r0(e.kcal)}</div></div>`).join('')}</div>
       <div class="meal-actions">
