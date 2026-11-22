@@ -67,12 +67,12 @@ nav.tabs button.fab svg{width:26px;height:26px}
 /* souhrn dne */
 .rings-wrap{display:flex;align-items:center;gap:18px;padding:4px 4px 10px}
 .rings-wrap svg{flex:none}
-.rvals{display:flex;flex-direction:column;gap:10px;min-width:0}
-.rvals .lbl{font-size:12px;color:var(--muted)}
-.rvals .v{font-family:Cinzel,Georgia,serif;font-weight:700;font-size:20px;white-space:nowrap}
-.rvals .v.big{font-size:26px}
+.rvals{display:flex;flex-direction:column;gap:6px;min-width:0}
+.rvals .lbl{font-size:12px;color:var(--muted);line-height:1.2}
+.rvals .v{font-family:Cinzel,Georgia,serif;font-weight:700;font-size:19px;white-space:nowrap;line-height:1.2}
+.rvals .v.big{font-size:24px}
 .rvals .v small{font-family:Inter,sans-serif;font-size:13px;color:var(--muted);font-weight:500}
-.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+.tiles{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:6px}
 .tile{padding:12px 14px;border-radius:16px;background:var(--card);border:1px solid var(--line)}
 .tile.over{background:#2a1a12;border-color:var(--warn)}
 .tile .lbl{font-size:12px;color:var(--muted)}
@@ -351,19 +351,19 @@ function render(tab){
 function sums(list){ return list.reduce((a,e)=>({kcal:a.kcal+Number(e.kcal), protein:a.protein+Number(e.protein), carbs:a.carbs+Number(e.carbs), fat:a.fat+Number(e.fat)}),{kcal:0,protein:0,carbs:0,fat:0}); }
 // Soustředné kruhy; nad cílem se kruh uzavře a přebytek pokračuje oranžově
 function ringsSvg(rings){
-  let out='<svg width="164" height="164" viewBox="0 0 164 164" aria-hidden="true"><circle cx="82" cy="82" r="78" fill="none" stroke="#3a3328" stroke-width="1" stroke-dasharray="2 5"/>';
+  let out='<svg width="164" height="164" viewBox="0 0 164 164" aria-hidden="true"><circle cx="82" cy="82" r="79" fill="none" stroke="#3a3328" stroke-width="1" stroke-dasharray="2 5"/>';
   for(const g of rings){
     const C=2*Math.PI*g.r;
-    out+=`<circle cx="82" cy="82" r="${g.r}" fill="none" stroke="#2a251d" stroke-width="12"/>`;
+    out+=`<circle cx="82" cy="82" r="${g.r}" fill="none" stroke="#2a251d" stroke-width="10"/>`;
     if(!g.target || !g.val) continue;
     const ratio=g.val/g.target;
     if(ratio<=1){
-      out+=`<circle cx="82" cy="82" r="${g.r}" fill="none" stroke="${g.color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-ratio)).toFixed(1)}" transform="rotate(-90 82 82)"/>`;
+      out+=`<circle cx="82" cy="82" r="${g.r}" fill="none" stroke="${g.color}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-ratio)).toFixed(1)}" transform="rotate(-90 82 82)"/>`;
     } else {
       const ov=Math.min(1, ratio-1)*C;
-      out+=`<circle cx="82" cy="82" r="${g.r}" fill="none" stroke="${g.color}" stroke-width="12"/>`;
-      out+=`<circle cx="82" cy="82" r="${g.r}" fill="none" stroke="#14120e" stroke-width="16" stroke-linecap="round" stroke-dasharray="${(ov+2).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-89 82 82)"/>`;
-      out+=`<circle cx="82" cy="82" r="${g.r}" fill="none" stroke="var(--warn)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${ov.toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 82 82)"/>`;
+      out+=`<circle cx="82" cy="82" r="${g.r}" fill="none" stroke="${g.color}" stroke-width="10"/>`;
+      out+=`<circle cx="82" cy="82" r="${g.r}" fill="none" stroke="#14120e" stroke-width="14" stroke-linecap="round" stroke-dasharray="${(ov+2).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-89 82 82)"/>`;
+      out+=`<circle cx="82" cy="82" r="${g.r}" fill="none" stroke="var(--warn)" stroke-width="10" stroke-linecap="round" stroke-dasharray="${ov.toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 82 82)"/>`;
     }
   }
   return out+'</svg>';
@@ -378,11 +378,12 @@ function renderToday(){
   const vcol = (v,tg,col) => tg && v>tg ? 'var(--warn)' : col;
   let html = `
   <div class="rings-wrap">
-    ${ringsSvg([{r:68,color:'var(--kcal)',val:s.kcal,target:t.kcal},{r:53,color:'var(--p)',val:s.protein,target:t.protein},{r:38,color:'var(--c)',val:s.carbs,target:t.carbs}])}
+    ${ringsSvg([{r:70,color:'var(--kcal)',val:s.kcal,target:t.kcal},{r:57,color:'var(--p)',val:s.protein,target:t.protein},{r:44,color:'var(--c)',val:s.carbs,target:t.carbs},{r:31,color:'var(--f)',val:s.fat,target:t.fat}])}
     <div class="rvals">
       <div><div class="lbl">Energie</div><div class="v big" style="color:${vcol(s.kcal,t.kcal,'var(--kcal)')}">${r0(s.kcal)}<small>${t.kcal?' / '+t.kcal:''} kcal</small></div></div>
       <div><div class="lbl">Bílkoviny</div><div class="v" style="color:${vcol(s.protein,t.protein,'var(--p)')}">${r0(s.protein)}<small>${t.protein?' / '+t.protein:''} g</small></div></div>
       <div><div class="lbl">Sacharidy</div><div class="v" style="color:${vcol(s.carbs,t.carbs,'var(--c)')}">${r0(s.carbs)}<small>${t.carbs?' / '+t.carbs:''} g</small></div></div>
+      <div><div class="lbl">Tuky</div><div class="v" style="color:${vcol(s.fat,t.fat,'var(--f)')}">${r0(s.fat)}<small>${t.fat?' / '+t.fat:''} g</small></div></div>
     </div>
   </div>
   <div class="tiles">
@@ -390,7 +391,6 @@ function renderToday(){
       ? `<div class="tile over"><div class="lbl" style="color:var(--warn)">Přes cíl</div><div class="v" style="color:var(--warn)">+${r0(-left)} <small>kcal</small></div></div>`
       : `<div class="tile"><div class="lbl">Zbývá</div><div class="v">${r0(left)} <small>kcal</small></div></div>`)
       : `<button class="tile" id="setGoal" style="text-align:left;color:inherit;cursor:pointer"><div class="lbl">Denní cíl</div><div class="small" style="color:var(--brand);font-weight:600;padding-top:4px">Nastavit v Účtu →</div></button>`}
-    <div class="tile"><div class="lbl">Tuky</div><div class="v" style="color:${vcol(s.fat,t.fat,'var(--f)')}">${r0(s.fat)} <small>${t.fat?'/ '+t.fat+' ':''}g</small></div></div>
   </div>
   <div class="sec-head"><h3>Jídla</h3><span class="small muted">${MEALS.filter(([k])=>S.entries.some(e=>e.meal===k)).length} z ${MEALS.length}</span></div>`;
   for(const [key,label] of MEALS){
