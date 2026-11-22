@@ -95,6 +95,7 @@ nav.tabs button.active{color:var(--brand);font-weight:600}
 /* průvodce kamerou */
 .cam{position:relative;width:100%;height:36vh;min-height:220px;background:#000;border-radius:12px;overflow:hidden;margin-bottom:10px}
 .cam video{width:100%;height:100%;object-fit:cover;display:block}
+.cam.scan{height:auto;min-height:0} .cam.scan .camMsg{position:static;padding:6px 0;background:#000}
 .cam .frame{position:absolute;border:3px solid #fbbf24;border-radius:8px;box-shadow:0 0 0 2000px rgba(0,0,0,.38);transition:all .2s}
 .cam .camMsg{position:absolute;left:0;right:0;bottom:8px;text-align:center;color:#fff;font-size:13px;text-shadow:0 1px 2px #000}
 .wz-steps{display:flex;gap:4px;margin:2px 0 10px}
@@ -514,7 +515,7 @@ async function getOcr(){
   if(ocrWorker) return ocrWorker;
   if(!ocrLoading) ocrLoading=(async()=>{
     if(!window.Tesseract) await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
-    const w=await Tesseract.createWorker('eng');
+    const w=await Tesseract.createWorker('eng', 1, { logger:x=>{ if(x && x.status && x.status!=='recognizing text') wzDiag('Příprava: '+x.status+(x.progress?' '+Math.round(x.progress*100)+' %':'')); } });
     await w.setParameters({ tessedit_pageseg_mode:'7' });   // jeden řádek textu
     ocrWorker=w; return w;
   })();
@@ -571,7 +572,41 @@ function wizardStop(){
   if(!WZ) return;
   WZ.active=false;
   if(WZ.stream) WZ.stream.getTracks().forEach(t=>t.stop());
+  const b=WZ.bc; if(b){ b.stop().catch(()=>{}).finally(()=>{ try{ b.clear(); }catch(_){} }); }
   WZ=null;
+}
+function wzDiag(t){ if(WZ){ const d=$('#wzDiag',WZ.m); if(d) d.textContent=t; } }
+async function wzStopBc(){ if(WZ && WZ.bc){ const b=WZ.bc; WZ.bc=null; try{ await b.stop(); }catch(_){} try{ b.clear(); }catch(_){} } }
+function wzStopOwn(){ if(WZ && WZ.stream){ WZ.stream.getTracks().forEach(t=>t.stop()); WZ.stream=null; const v=$('#wzVideo',WZ.m); if(v) v.srcObject=null; } }
+// Čárový kód čte stejný živý skener jako tlačítko Sken; čísla čte vlastní kamera s rámečkem
+async function wzCamFor(type){
+  if(!WZ) return;
+  const m=WZ.m, video=$('#wzVideo',m), rd=$('#wzReader',m), fr=$('#wzFrame',m);
+  if(type==='barcode'){
+    wzStopOwn();
+    video.classList.add('hidden'); fr.classList.add('hidden'); rd.classList.remove('hidden'); $('#wzCam',m).classList.add('scan');
+    if(WZ.bc) return;
+    if(!window.Html5Qrcode){ $('#wzMsg',m).textContent='Skener není dostupný – opiš kód ručně'; return; }
+    try{
+      const F=Html5QrcodeSupportedFormats;
+      const bc=new Html5Qrcode('wzReader',{ formatsToSupport:[F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E], verbose:false });
+      WZ.bc=bc;
+      await bc.start({ facingMode:'environment' }, { fps:10, qrbox:{ width:260, height:140 } }, code=>{
+        if(WZ && !WZ.bcBusy && WZ.steps[WZ.i].type==='barcode' && /^\d{6,14}$/.test(code)){ WZ.bcBusy=true; $('#wzVal',WZ.m).value=code; wzBarcode(code).finally(()=>{ if(WZ) WZ.bcBusy=false; }); }
+      });
+    }catch(e){ if(WZ) WZ.bc=null; wzDiag('Skener: '+(e.message||e)); $('#wzMsg',m).textContent='Kamera není dostupná – opiš kód ručně'; }
+  } else if(type==='value'){
+    await wzStopBc(); if(!WZ) return;
+    rd.classList.add('hidden'); video.classList.remove('hidden'); fr.classList.remove('hidden'); $('#wzCam',m).classList.remove('scan');
+    if(WZ.stream) return;
+    try{
+      const st=await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment', width:{ideal:1920}, height:{ideal:1080} }, audio:false });
+      if(!WZ){ st.getTracks().forEach(t=>t.stop()); return; }
+      WZ.stream=st; video.srcObject=st; await video.play().catch(()=>{});
+    }catch(e){ wzDiag('Kamera: '+(e.message||e)); $('#wzMsg',m).textContent='Kamera není dostupná – zadej hodnotu ručně'; }
+  } else {
+    await wzStopBc(); wzStopOwn();
+  }
 }
 
 async function openWizard(prefill, then){
@@ -581,8 +616,8 @@ async function openWizard(prefill, then){
     <div class="wz-steps">${steps.map(()=>'<i></i>').join('')}</div>
     <div style="font-weight:700;font-size:17px" id="wzTitle"></div>
     <div class="small muted" id="wzHint" style="margin:2px 0 8px"></div>
-    <div class="cam" id="wzCam"><video id="wzVideo" playsinline muted autoplay></video><div class="frame" id="wzFrame"></div><div class="camMsg" id="wzMsg"></div></div>
-    <div id="wzHidden" style="display:none"></div>
+    <div class="cam" id="wzCam"><div id="wzReader" class="hidden"></div><video id="wzVideo" playsinline muted autoplay></video><div class="frame" id="wzFrame"></div><div class="camMsg" id="wzMsg"></div></div>
+    <div id="wzDiag" class="muted" style="font-size:11px;min-height:15px;margin:-4px 0 6px;word-break:break-all"></div>
     <div class="wz-read" id="wzReadRow">
       <input type="text" id="wzVal" inputmode="decimal" autocomplete="off">
       <span class="unit" id="wzUnit"></span>
@@ -597,18 +632,9 @@ async function openWizard(prefill, then){
       <button class="btn" id="wzOk" style="flex:1.4">Potvrdit</button>
     </div>
     <div class="wz-sum" id="wzSum"></div>`);
-  WZ={ active:true, steps, i:0, vals:{ barcode:prefill.barcode||null }, reads:[], edited:false, busy:false, stream:null, then, prefill, m };
+  WZ={ active:true, steps, i:0, vals:{ barcode:prefill.barcode||null }, reads:[], edited:false, busy:false, stream:null, bc:null, camQ:Promise.resolve(), then, prefill, m };
   const video=$('#wzVideo',m), valIn=$('#wzVal',m);
   valIn.oninput=()=>{ if(WZ) WZ.edited=true; };
-
-  try{
-    WZ.stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment', width:{ideal:1920}, height:{ideal:1080} }, audio:false });
-    if(!WZ){ return; }
-    video.srcObject=WZ.stream; await video.play().catch(()=>{});
-  }catch(err){
-    toast('Kamera není dostupná – hodnoty zadej ručně');
-    $('#wzMsg',m).textContent='Kamera není dostupná';
-  }
 
   $('#wzBack',m).onclick=()=>{ if(WZ.i>0){ WZ.i--; wzShow(); } };
   $('#wzSkip',m).onclick=()=>{ const st=WZ.steps[WZ.i]; if(st.key==='kcal') return toast('Energie je povinná – zadej ji ručně'); WZ.vals[st.key]=null; wzNext(); };
@@ -658,6 +684,8 @@ function wzShow(){
   vi.value = prev!=null ? String(prev).replace('.',',') : '';
   WZ.edited = prev!=null; WZ.reads=[];
   $('#wzMsg',m).textContent = st.type==='barcode' ? 'Hledám čárový kód…' : '';
+  wzDiag('');
+  WZ.camQ = WZ.camQ.then(()=>wzCamFor(st.type)).catch(()=>{});
   const L=[['kcal','Energie','kcal'],['fat','Tuky','g'],['saturated_fat','nasycené','g'],['carbs','Sacharidy','g'],['sugar','cukry','g'],['protein','Bílkoviny','g'],['salt','Sůl','g']];
   const got=L.filter(([k])=>WZ.vals[k]!=null).map(([k,l,u])=>`${l} <b>${String(WZ.vals[k]).replace('.',',')}</b> ${u}`);
   $('#wzSum',m).innerHTML = (WZ.vals.barcode?`Kód ${esc(WZ.vals.barcode)}<br>`:'') + got.join(' · ');
@@ -717,22 +745,13 @@ function wzEnhance(c){
 }
 
 async function wzLoop(video){
-  let bc=null, ocrReady=false;
+  let ocrReady=false;
   while(WZ && WZ.active){
     const st=WZ.steps[WZ.i];
-    if(!video.videoWidth || WZ.busy || st.type==='name'){ await sleep(250); continue; }
+    if(st.type!=='value' || !WZ.stream || !video.videoWidth || WZ.busy){ await sleep(250); continue; }
     WZ.busy=true;
     try{
-      if(st.type==='barcode' && window.Html5Qrcode){
-        if(!bc){ const F=Html5QrcodeSupportedFormats; bc=new Html5Qrcode('wzHidden',{ formatsToSupport:[F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E], verbose:false }); }
-        const c=wzCrop(video, WZ_FRAME.barcode);
-        const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.85));
-        try{
-          const code=await bc.scanFile(new File([blob],'kod.jpg',{type:'image/jpeg'}), false);
-          if(WZ && WZ.steps[WZ.i].type==='barcode' && /^\d{6,14}$/.test(code)){ $('#wzVal',WZ.m).value=code; WZ.busy=false; await wzBarcode(code); continue; }
-        }catch(_){ /* kód zatím nenalezen */ }
-      }
-      if(st.type==='value'){
+      {
         if(!ocrReady){ $('#wzMsg',WZ.m).textContent='Připravuji čtení čísel (poprvé to chvíli trvá)…'; }
         const w=await getOcr();
         if(!WZ) break;
@@ -742,6 +761,7 @@ async function wzLoop(video){
         const c=wzEnhance(wzCrop(video, WZ_FRAME.value, 165));
         const { data } = await w.recognize(c);
         if(!WZ || WZ.steps[WZ.i].key!==key) { if(WZ) WZ.busy=false; continue; }
+        wzDiag('Vidím: „'+String(data.text||'').trim()+'“');
         const v=parseReading(data.text, key);
         if(v!=null){
           WZ.reads.push(v); if(WZ.reads.length>5) WZ.reads.shift();
@@ -755,6 +775,7 @@ async function wzLoop(video){
       }
     }catch(err){
       console.error(err);
+      wzDiag('Chyba: '+(err && err.message || err));
       if(WZ) $('#wzMsg',WZ.m).textContent='Čtení se nepodařilo – zadej hodnotu ručně';
       if(WZ) WZ.busy=false;
       await sleep(1500);
