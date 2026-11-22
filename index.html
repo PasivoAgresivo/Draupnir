@@ -318,7 +318,6 @@ const IC = {
   prev:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg>',
   next:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>',
   today:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
-  gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>',
   plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>',
   star:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>',
   repeat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12a8 8 0 0114-5.3L20 9M20 4v5h-5M20 12a8 8 0 01-14 5.3L4 15M4 20v-5h5"/></svg>',
@@ -420,7 +419,7 @@ function renderToday(){
   $('#prevDay').onclick=()=>go(addDays(S.date,-1));
   $('#nextDay').onclick=()=>go(addDays(S.date,1));
   const gt=$('#goToday'); if(gt) gt.onclick=()=>go(todayISO());
-  const sg=$('#setGoal'); if(sg) sg.onclick=()=>{ showTab('account'); openSettings(); };
+  const sg=$('#setGoal'); if(sg) sg.onclick=()=>{ showTab('account'); setTimeout(()=>$('#settingsGoal')?.scrollIntoView({behavior:'smooth'}),50); };
   el.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>openAddFood(b.dataset.add));
   el.querySelectorAll('[data-fav]').forEach(b=>b.onclick=()=>openSaveFavorite(b.dataset.fav));
   el.querySelectorAll('.entry').forEach(r=>r.onclick=()=>openEditEntry(S.entries.find(e=>String(e.id)===r.dataset.id)));
@@ -1105,8 +1104,6 @@ function sparkSvg(pts, color, label){
 }
 function renderAccount(){
   $('#title').textContent='Účet';
-  $('#headBtns').innerHTML=`<button class="icon-btn" id="openSettings" aria-label="Nastavení a cíle">${IC.gear}</button>`;
-  $('#openSettings').onclick=openSettings;
   const ws=[...S.weights].reverse().slice(-60).map(w=>({date:w.date,v:Number(w.weight_kg)}));
   const last=ws[ws.length-1], first=ws[0];
   let trend='';
@@ -1133,6 +1130,7 @@ function renderAccount(){
     </div>
     <div style="margin-top:10px">${sparkSvg(ws,'var(--brand)','Vývoj váhy') || '<p class="empty">Graf se ukáže po dvou zápisech váhy.</p>'}</div>
   </div>
+  <div id="settingsGoal"></div>
   <div class="card">
     <div class="row between">
       <div><h2 style="margin:0">Míry těla</h2><div class="small muted">${latestDate?`Měřeno ${czDate(latestDate)}${anyPrev?' · rozdíl proti minulému měření':''}`:'Zatím žádné měření'}</div></div>
@@ -1140,7 +1138,9 @@ function renderAccount(){
     </div>
     ${groups}
     ${S.meas.length>=2?'<button class="btn ghost block" id="mChart" style="margin-top:6px">Graf vývoje měr</button>':''}
-  </div>`;
+  </div>
+  <div id="settingsUser"></div>`;
+  renderSettings();
   $('#wAdd').onclick=openWeightEntry;
   $('#mAdd').onclick=openMeasureForm;
   const mc=$('#mChart'); if(mc) mc.onclick=()=>openMeasureChart('biceps_r');
@@ -1207,15 +1207,11 @@ function openMeasureChart(key){
 }
 
 // ---------- Nastavení: cíle, jméno, heslo ----------
-function openSettings(){
-  openModal(`${head('Nastavení')}<div id="settingsBody"></div>`);
-  renderSettings();
-}
 let profMode=null;
 function renderSettings(){
   const p=S.profile||{}, w=latestWeight();
   if(!profMode) profMode=p.target_mode||'manual';
-  const el=$('#settingsBody'); if(!el) return;
+  const el=$('#settingsGoal'), elU=$('#settingsUser'); if(!el||!elU) return;
   el.innerHTML=`
   <div class="card">
     <h2>Denní cíl</h2>
@@ -1241,7 +1237,8 @@ function renderSettings(){
       <div class="result" id="autoRes"></div>
     </div>
     <button class="btn block" id="saveGoal">Uložit cíl</button>
-  </div>
+  </div>`;
+  elU.innerHTML=`
   <div class="card">
     <h2>Účet</h2>
     <label class="f"><span>Jméno v aplikaci</span><input type="text" id="u_name" value="${esc(p.display_name)}"></label>
@@ -1289,7 +1286,7 @@ function renderSettings(){
     }
     const { data, error }=await sb.from('profiles').update({ ...row, updated_at:new Date().toISOString() }).eq('user_id',S.user.id).select().single();
     if(error) return fail(error,'Uložení cíle');
-    S.profile=data; await closeModal(); render(S.tab); toast('Cíl uložen');
+    S.profile=data; renderAccount(); toast('Cíl uložen');
   };
   $('#u_saveName').onclick=async()=>{
     const { data, error }=await sb.from('profiles').update({ display_name:$('#u_name').value.trim()||null }).eq('user_id',S.user.id).select().single();
