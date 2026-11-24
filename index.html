@@ -442,8 +442,8 @@ const head = title => `<div class="sheet-head"><h2>${title}</h2><button class="b
 
 function foodLine(f){
   return `<div class="list-item" data-food="${f.id}">
-    <div><div>${esc(f.name)}${f.source==='off'?'<span class="tag">OFF</span>':''}</div>
-    <div class="small muted">${f.brand?esc(f.brand)+' · ':''}B ${r1(f.protein)} · S ${r1(f.carbs)} · T ${r1(f.fat)} / 100 ${U(f)}</div></div>
+    <div><div>${esc(f.name)}${f.source==='off'?'<span class="tag">OFF</span>':''}${f.source==='recipe'?'<span class="tag" style="color:var(--brand);border-color:var(--brand)">Recept</span>':''}</div>
+    <div class="small muted">${f.brand?esc(f.brand)+' · ':''}B ${fmtNum(f.protein)} · S ${fmtNum(f.carbs)} · T ${fmtNum(f.fat)} / 100 ${U(f)}</div></div>
     <div class="k" style="white-space:nowrap">${r0(f.kcal)} kcal</div></div>`;
 }
 function searchFoods(q){
@@ -1056,6 +1056,128 @@ function openFoodForm(f, then){
   };
 }
 
+// ---------- Recepty ----------
+// Recept je potravina (source 'recipe'); hodnoty na 100 g se počítají ze surovin a hotové váhy
+let RE=null;
+const NUTR=['kcal','protein','carbs','fat','sugar','saturated_fat','fiber','salt'];
+function itemFrom(food, amount){
+  const k=amount/100, it={ food_id:food.id??null, food_name:food.name+(food.brand?' ('+food.brand+')':''), amount, unit:U(food) };
+  for(const n of NUTR) it[n] = food[n]==null ? (['kcal','protein','carbs','fat'].includes(n)?0:null) : Math.round(Number(food[n])*k*100)/100;
+  return it;
+}
+function recipeTotals(){
+  const t={ weightRaw:0 }; for(const n of NUTR) t[n]=0;
+  for(const it of RE.items){ t.weightRaw+=Number(it.amount); for(const n of NUTR) t[n]+=Number(it[n]||0); }
+  t.weight = RE.cooked || t.weightRaw;
+  t.portion = RE.portions ? t.weight/RE.portions : t.weight;
+  return t;
+}
+async function openRecipeEditor(rec){
+  RE={ id:rec?.id||null, name:rec?.name||'', portions:rec?.recipe_portions||null, cooked:rec?.recipe_cooked_g?Number(rec.recipe_cooked_g):null,
+       items:[], own: !rec || rec.created_by===S.user.id };
+  if(rec){
+    const { data, error } = await sb.from('recipe_items').select('*').eq('recipe_food_id', rec.id).order('sort');
+    if(error) return fail(error,'Recept');
+    RE.items=(data||[]).map(d=>({ ...d, amount:Number(d.amount) }));
+  }
+  drawRecipe();
+}
+function recipeSumHtml(){
+  const t=recipeTotals(), per=t.weight?100/t.weight:0;
+  return `<div class="row between"><b>Celkem</b><span>${r0(t.kcal)} kcal · ${r0(t.weight)} g</span></div>
+      ${t.weight?`<div class="row between small" style="margin-top:4px"><span>Na 100 g</span><span>${r0(t.kcal*per)} kcal</span></div>${macLine(t.protein*per,t.carbs*per,t.fat*per)}`:''}
+      ${RE.portions&&t.weight?`<div class="row between small" style="margin-top:6px"><span>1 porce = ${fmtNum(t.portion)} g</span><b>${r0(t.kcal/RE.portions)} kcal</b></div>`:''}`;
+}
+function drawRecipe(){
+  const t=recipeTotals(), ro=!RE.own;
+  const m=openModal(`${head(RE.id?(ro?'Recept':'Upravit recept'):'Nový recept')}
+    ${ro?'<p class="small muted" style="margin-top:0">Recept přidal jiný člen rodiny, upravit ho může jen on.</p>':''}
+    <label class="f"><span>Název *</span><input type="text" id="r_name" value="${esc(RE.name)}" placeholder="např. Domácí bagel" maxlength="200"></label>
+    <div class="label-caps">SUROVINY</div>
+    <div class="card" style="padding:2px 14px">${RE.items.map((it,i)=>`
+      <div class="list-item" data-it="${i}"><div style="flex:1;min-width:0"><div>${esc(it.food_name)}</div><div class="small muted">${fmtNum(it.amount)} ${U(it)} · ${r0(it.kcal)} kcal</div></div>
+        ${ro?'':`<button class="icon-btn" data-rm="${i}" aria-label="Odebrat ${esc(it.food_name)}" style="color:var(--danger)">${IC.trash}</button>`}</div>`).join('') || '<p class="empty">Zatím žádné suroviny.</p>'}</div>
+    ${ro?'':'<button class="btn secondary block" id="r_add" style="margin-bottom:6px">+ Přidat surovinu</button>'}
+    <div class="label-caps">VÝSLEDEK</div>
+    <div class="grid2">
+      <label class="f"><span>Počet kusů / porcí</span><input type="number" id="r_portions" inputmode="numeric" min="1" step="1" value="${RE.portions??''}" placeholder="např. 8"></label>
+      <label class="f"><span>Hotová váha (g)</span><input type="number" id="r_cooked" inputmode="decimal" min="1" step="any" value="${RE.cooked??''}" placeholder="${r0(t.weightRaw)||'nepovinné'}"></label>
+    </div>
+    <p class="small muted" style="margin-top:0">Hotovou váhu vyplň, když jídlo po upečení nebo uvaření zvážíš. Pečením se mění váha, takže výpočet bude přesnější. Jinak se použije součet surovin${RE.items.some(i=>U(i)==='ml')?' (ml se počítají jako g)':''}.</p>
+    <div class="result" id="r_sum">${recipeSumHtml()}</div>
+    ${ro?'':`<button class="btn block" id="r_save">${RE.id?'Uložit recept':'Uložit recept'}</button>`}
+    ${RE.id&&!ro?'<button class="btn danger block" id="r_del" style="margin-top:8px">Smazat recept</button>':''}`);
+  const sync=()=>{ RE.name=$('#r_name',m).value; RE.portions=num($('#r_portions',m).value)?Math.round(num($('#r_portions',m).value)):null; RE.cooked=num($('#r_cooked',m).value)||null; };
+  if(ro){ m.querySelectorAll('input').forEach(i=>i.disabled=true); return; }
+  ['r_portions','r_cooked'].forEach(id=>$('#'+id,m).oninput=()=>{ sync(); $('#r_sum',m).innerHTML=recipeSumHtml(); });
+  $('#r_name',m).oninput=sync;
+  $('#r_add',m).onclick=()=>{ sync(); openIngredientPicker(); };
+  m.querySelectorAll('[data-rm]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); sync(); RE.items.splice(Number(b.dataset.rm),1); drawRecipe(); });
+  m.querySelectorAll('[data-it]').forEach(r=>r.onclick=()=>{ sync(); const it=RE.items[Number(r.dataset.it)];
+    const v=prompt(`Množství – ${it.food_name} (${U(it)})`, String(it.amount).replace('.',',')); const a=num(v);
+    if(a>0){ const k=a/it.amount; it.amount=a; for(const n of NUTR) if(it[n]!=null) it[n]=Math.round(it[n]*k*100)/100; drawRecipe(); } });
+  $('#r_save',m).onclick=()=>{ sync(); saveRecipe(); };
+  const del=$('#r_del',m);
+  if(del) del.onclick=async()=>{
+    if(!confirm('Smazat recept? Záznamy v jídelníčku zůstanou.')) return;
+    const { error }=await sb.from('foods').delete().eq('id',RE.id);
+    if(error) return fail(error,'Smazání');
+    RE=null; await closeModal(); await loadFoods(); renderFoods(); toast('Recept smazán');
+  };
+}
+function openIngredientPicker(q=''){
+  const m=openModal(`<div class="sheet-head"><h2>Přidat surovinu</h2><button class="btn ghost" id="pBack">Zpět</button></div>
+    <input type="search" id="pq" placeholder="Hledat potravinu…" autocomplete="off" value="${esc(q)}" style="margin-bottom:10px">
+    <div class="card" style="padding:4px 14px"><div id="pres"></div></div>
+    <button class="btn ghost block" id="pNew">+ Nová potravina</button>`);
+  const pq=$('#pq',m);
+  const draw=()=>{
+    const list=searchFoods(pq.value).filter(f=>f.id!==RE.id && f.source!=='recipe');
+    $('#pres',m).innerHTML=list.map(foodLine).join('') || `<p class="empty">${pq.value.trim()?'Nic nenalezeno.':'Začni psát název suroviny.'}</p>`;
+    m.querySelectorAll('[data-food]').forEach(r=>r.onclick=()=>openIngredientAmount(S.foods.find(f=>String(f.id)===r.dataset.food)));
+  };
+  pq.oninput=draw; draw(); pq.focus();
+  $('#pBack',m).onclick=drawRecipe;
+  $('#pNew',m).onclick=()=>chooseNewFood({ name:pq.value.trim() }, f=>openIngredientAmount(f));
+}
+function openIngredientAmount(food){
+  const u=U(food), quick=u==='ml'?[50,100,200,250,500]:[10,50,100,250,500];
+  const m=openModal(`<div class="sheet-head"><h2>Množství</h2><button class="btn ghost" id="aBack">Zpět</button></div>
+    <div class="card"><div style="font-weight:600">${esc(food.name)}</div><div class="small muted">${r0(food.kcal)} kcal / 100 ${u}</div></div>
+    <div class="chips">${quick.map(x=>`<button data-g="${x}">${x} ${u}</button>`).join('')}${food.serving_g?`<button data-g="${Number(food.serving_g)}">1 ks (${fmtNum(food.serving_g)} ${u})</button>`:''}</div>
+    <label class="f"><span>Množství (${u})</span><input type="number" id="ia" inputmode="decimal" min="0" step="any"></label>
+    <button class="btn block" id="aOk">Přidat do receptu</button>`);
+  const ia=$('#ia',m); ia.focus();
+  m.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ ia.value=b.dataset.g; });
+  $('#aBack',m).onclick=()=>openIngredientPicker();
+  $('#aOk',m).onclick=()=>{ const a=num(ia.value); if(!(a>0)) return toast('Zadej množství');
+    RE.items.push(itemFrom(food,a)); drawRecipe(); };
+}
+async function saveRecipe(){
+  const t=recipeTotals();
+  if(!RE.name.trim()) return toast('Vyplň název receptu');
+  if(!RE.items.length) return toast('Přidej aspoň jednu surovinu');
+  if(!t.weight) return toast('Recept nemá žádnou váhu');
+  const per=100/t.weight, rd=(x,d=1)=>Math.round(x*per*Math.pow(10,d))/Math.pow(10,d);
+  const row={ name:RE.name.trim(), unit:'g', source:'recipe', recipe_portions:RE.portions, recipe_cooked_g:RE.cooked,
+    serving_g: RE.portions ? Math.round(t.weight/RE.portions*10)/10 : null,
+    kcal:Math.min(1000,rd(t.kcal)), protein:Math.min(100,rd(t.protein)), carbs:Math.min(100,rd(t.carbs)), fat:Math.min(100,rd(t.fat)),
+    sugar:Math.min(100,rd(t.sugar)), saturated_fat:Math.min(100,rd(t.saturated_fat)), fiber:Math.min(100,rd(t.fiber)), salt:Math.min(100,rd(t.salt,2)) };
+  if(row.sugar>row.carbs) row.sugar=row.carbs;
+  if(row.saturated_fat>row.fat) row.saturated_fat=row.fat;
+  let res = RE.id ? await sb.from('foods').update(row).eq('id',RE.id).select().single()
+                  : await sb.from('foods').insert(row).select().single();
+  if(res.error) return fail(res.error,'Uložení receptu');
+  const id=res.data.id;
+  const del=await sb.from('recipe_items').delete().eq('recipe_food_id', id);
+  if(del.error) return fail(del.error,'Uložení surovin');
+  const items=RE.items.map((it,i)=>({ recipe_food_id:id, food_id:it.food_id??null, food_name:it.food_name, amount:it.amount, unit:U(it),
+    kcal:it.kcal, protein:it.protein, carbs:it.carbs, fat:it.fat, sugar:it.sugar??null, saturated_fat:it.saturated_fat??null, fiber:it.fiber??null, salt:it.salt??null, sort:i }));
+  const ins=await sb.from('recipe_items').insert(items);
+  if(ins.error) return fail(ins.error,'Uložení surovin');
+  RE=null; await closeModal(); await loadFoods(); if(S.tab==='foods') renderFoods(); toast('Recept uložen');
+}
+
 // ---------- Záložka Potraviny ----------
 let foodsQuery='';
 function renderFoods(){
@@ -1067,17 +1189,18 @@ function renderFoods(){
       <button class="btn secondary" id="fscan">Sken</button>
     </div>
     <div id="scanArea" class="hidden" style="margin-bottom:10px"><div id="reader"></div></div>
-    <button class="btn block" id="fnew" style="margin-bottom:12px">+ Nová potravina</button>
+    <div class="grid2" style="gap:10px;margin-bottom:12px"><button class="btn" id="fnew">+ Nová potravina</button><button class="btn outline" id="frec">+ Nový recept</button></div>
     <div class="card" style="padding:4px 14px" id="flist"></div>
-    <p class="small muted">Databáze potravin je společná pro celou rodinu. Jídelníček a váhu vidí každý jen svoje.</p>`;
+    <p class="small muted">Potraviny a recepty jsou společné pro celou rodinu, upravovat je může jen autor. Jídelníček a váhu vidí každý jen svoje.</p>`;
   const draw=()=>{
     const n=norm(foodsQuery).trim(), words=n.split(/\s+/);
     const list = n ? S.foods.filter(f=>words.every(w=>norm(f.name+' '+(f.brand||'')+' '+(f.barcode||'')).includes(w))) : S.foods;
     $('#flist').innerHTML = list.length ? list.slice(0,200).map(foodLine).join('') : '<p class="empty">Žádné potraviny. Přidej první nebo naskenuj čárový kód.</p>';
-    el.querySelectorAll('[data-food]').forEach(r=>r.onclick=()=>openFoodForm(S.foods.find(f=>String(f.id)===r.dataset.food)));
+    el.querySelectorAll('[data-food]').forEach(r=>r.onclick=()=>{ const f=S.foods.find(x=>String(x.id)===r.dataset.food); f.source==='recipe' ? openRecipeEditor(f) : openFoodForm(f); });
   };
   $('#fq').oninput=e=>{ foodsQuery=e.target.value; draw(); };
   $('#fnew').onclick=()=>chooseNewFood({}, null);
+  $('#frec').onclick=()=>openRecipeEditor(null);
   $('#fscan').onclick=()=>startScan(el, code=>{
     const own=S.foods.find(f=>f.barcode===code);
     if(own) return openFoodForm(own);
