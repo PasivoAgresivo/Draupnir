@@ -330,6 +330,7 @@ function defaultMeal(){ const h=new Date().getHours(); return h<10?'breakfast':h
 const macLine = (p,c,f) => `<div class="mac"><span><b class="p">B</b> ${String(r1(p)).replace('.',',')}</span><span><b class="c">S</b> ${String(r1(c)).replace('.',',')}</span><span><b class="f">T</b> ${String(r1(f)).replace('.',',')}</span></div>`;
 const kc = (n) => `<span class="kc">${r0(n)}<small> kcal</small></span>`;
 const fmtNum = n => String(r1(n)).replace('.',',');
+const U = x => (x && x.unit==='ml') ? 'ml' : 'g';
 const fmt1 = n => Number(n).toFixed(1).replace('.',',');
 const sgn1 = x => (x>0?'+':x<0?'−':'')+fmt1(Math.abs(x));
 
@@ -399,7 +400,7 @@ function renderToday(){
     html += `<div class="meal-card">
       <div class="meal-top"><div style="flex:1;min-width:0"><div class="meal-name">${label}</div>${macLine(ms.protein,ms.carbs,ms.fat)}</div>${kc(ms.kcal)}</div>
       <div style="margin-top:8px">${list.map(e=>`
-        <div class="entry" data-id="${e.id}"><div class="n">${esc(e.food_name)} <span class="muted">· ${fmtNum(e.grams)} g</span></div><div class="k">${r0(e.kcal)}</div></div>`).join('')}</div>
+        <div class="entry" data-id="${e.id}"><div class="n">${esc(e.food_name)} <span class="muted">· ${fmtNum(e.grams)} ${U(e)}</span></div><div class="k">${r0(e.kcal)}</div></div>`).join('')}</div>
       <div class="meal-actions">
         <button data-add="${key}">${IC.plus}Přidat</button>
         <button data-fav="${key}">${IC.star}Do oblíbených</button>
@@ -442,7 +443,7 @@ const head = title => `<div class="sheet-head"><h2>${title}</h2><button class="b
 function foodLine(f){
   return `<div class="list-item" data-food="${f.id}">
     <div><div>${esc(f.name)}${f.source==='off'?'<span class="tag">OFF</span>':''}</div>
-    <div class="small muted">${f.brand?esc(f.brand)+' · ':''}B ${r1(f.protein)} · S ${r1(f.carbs)} · T ${r1(f.fat)} / 100 g</div></div>
+    <div class="small muted">${f.brand?esc(f.brand)+' · ':''}B ${r1(f.protein)} · S ${r1(f.carbs)} · T ${r1(f.fat)} / 100 ${U(f)}</div></div>
     <div class="k" style="white-space:nowrap">${r0(f.kcal)} kcal</div></div>`;
 }
 function searchFoods(q){
@@ -488,7 +489,7 @@ async function openAddFood(meal, keepQ=''){
     $('#favBox',m).innerHTML=`<div class="row between"><div class="label-caps">OBLÍBENÁ JÍDLA</div><button class="btn ghost small" id="favManage">Upravit</button></div>`
       + S.favorites.map(f=>{ const t=sums(f.items); return `<div class="fav">
         <div style="flex:1;min-width:0"><div style="font-weight:600">${esc(f.name)}</div>
-          <div class="small muted" style="padding:2px 0 4px">${f.items.map(i=>esc(i.food_name)+' '+fmtNum(i.grams)+' g').join(' · ')}</div>${macLine(t.protein,t.carbs,t.fat)}</div>
+          <div class="small muted" style="padding:2px 0 4px">${f.items.map(i=>esc(i.food_name)+' '+fmtNum(i.grams)+' '+U(i)).join(' · ')}</div>${macLine(t.protein,t.carbs,t.fat)}</div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">${kc(t.kcal)}<button class="add" data-favadd="${f.id}" aria-label="Přidat ${esc(f.name)}">${IC.plus}</button></div></div>`; }).join('');
     m.querySelectorAll('[data-favadd]').forEach(b=>b.onclick=async()=>{
       const f=S.favorites.find(x=>String(x.id)===b.dataset.favadd);
@@ -506,7 +507,7 @@ async function openAddFood(meal, keepQ=''){
       <div class="row" style="gap:10px;margin-bottom:10px">
         <div class="meal-ic" style="border-color:var(--brand);color:var(--brand)">${IC.repeat}</div>
         <div style="flex:1;min-width:0"><div style="font-weight:600">Zopakovat ze ${S.date===todayISO()?'včerejška':'předchozího dne'}</div>
-          <div class="small muted">${yd.map(e=>esc(e.food_name)+' '+fmtNum(e.grams)+' g').join(' · ')}</div></div>
+          <div class="small muted">${yd.map(e=>esc(e.food_name)+' '+fmtNum(e.grams)+' '+U(e)).join(' · ')}</div></div>
         ${kc(t.kcal)}
       </div>
       <button class="btn block" id="repeatBtn">Přidat stejné jídlo</button></div>`;
@@ -516,7 +517,7 @@ async function openAddFood(meal, keepQ=''){
 
 // Vloží položky (oblíbené jídlo nebo včerejší záznamy) do zvoleného jídla a dne
 async function insertItems(items, meal){
-  const rows=items.map(i=>({ date:S.date, meal, food_id:i.food_id??null, food_name:i.food_name, grams:i.grams, kcal:i.kcal, protein:i.protein, carbs:i.carbs, fat:i.fat }));
+  const rows=items.map(i=>({ date:S.date, meal, food_id:i.food_id??null, food_name:i.food_name, grams:i.grams, unit:U(i), kcal:i.kcal, protein:i.protein, carbs:i.carbs, fat:i.fat }));
   const { error } = await sb.from('meal_entries').insert(rows);
   if(error) return fail(error,'Přidání');
   await closeModal(); await Promise.all([loadEntries(), loadRecent()]);
@@ -531,7 +532,7 @@ function openSaveFavorite(meal){
     <label class="f"><span>Název</span><input type="text" id="favName" value="${esc(mealLabel(meal))}" maxlength="120"></label>
     <div class="card" style="padding:2px 14px">${list.map(e=>`
       <label class="list-item" style="cursor:pointer"><input type="checkbox" data-it="${e.id}" checked style="width:22px;height:22px;accent-color:#d4a94e;flex:none">
-        <div style="flex:1"><div>${esc(e.food_name)}</div><div class="small muted">${fmtNum(e.grams)} g</div></div>${kc(e.kcal)}</label>`).join('')}</div>
+        <div style="flex:1"><div>${esc(e.food_name)}</div><div class="small muted">${fmtNum(e.grams)} ${U(e)}</div></div>${kc(e.kcal)}</label>`).join('')}</div>
     <p class="small muted">Zaškrtni, co do oblíbeného jídla patří. Uloží se i množství.</p>
     <div class="result" id="favSum"></div>
     <button class="btn block" id="favSave">Uložit oblíbené jídlo</button>`);
@@ -540,7 +541,7 @@ function openSaveFavorite(meal){
   const upd=()=>{ const t=sums(picked()); $('#favSum',m).innerHTML=`<b>${r0(t.kcal)} kcal</b> · ${macLine(t.protein,t.carbs,t.fat)}`; };
   m.querySelectorAll('[data-it]').forEach(c=>c.onchange=upd); upd();
   $('#favSave',m).onclick=async()=>{
-    const name=nameIn.value.trim(), items=picked().map(e=>({ food_id:e.food_id, food_name:e.food_name, grams:Number(e.grams), kcal:Number(e.kcal), protein:Number(e.protein), carbs:Number(e.carbs), fat:Number(e.fat) }));
+    const name=nameIn.value.trim(), items=picked().map(e=>({ food_id:e.food_id, food_name:e.food_name, grams:Number(e.grams), unit:U(e), kcal:Number(e.kcal), protein:Number(e.protein), carbs:Number(e.carbs), fat:Number(e.fat) }));
     if(!name) return toast('Vyplň název');
     if(!items.length) return toast('Vyber aspoň jednu položku');
     const { error } = await sb.from('favorite_meals').insert({ name, items });
@@ -577,24 +578,26 @@ function openManageFavorites(meal){
 
 // Zadání množství
 function openAmount(food, meal, entry){
+  const u = U(entry||food);
   const g0 = entry ? Number(entry.grams) : (food.serving_g ? Number(food.serving_g) : 100);
+  const quick = u==='ml' ? [100,200,250,330,500] : [50,100,150,200];
   const m=openModal(`${head(entry?'Upravit záznam':'Množství')}
     <div class="card">
       <div style="font-weight:600">${esc(food.name)}</div>
-      <div class="small muted">${food.brand?esc(food.brand)+' · ':''}${r0(food.kcal)} kcal / 100 g</div>
+      <div class="small muted">${food.brand?esc(food.brand)+' · ':''}${r0(food.kcal)} kcal / 100 ${u}</div>
     </div>
     <div class="chips">
-      <button data-g="50">50 g</button><button data-g="100">100 g</button><button data-g="150">150 g</button><button data-g="200">200 g</button>
-      ${food.serving_g?`<button data-g="${Number(food.serving_g)}">1 porce (${r1(food.serving_g)} g)</button>`:''}
+      ${quick.map(q=>`<button data-g="${q}">${q} ${u}</button>`).join('')}
+      ${food.serving_g?`<button data-g="${Number(food.serving_g)}">1 porce (${fmtNum(food.serving_g)} ${u})</button>`:''}
     </div>
-    ${food.serving_g?`<label class="f"><span>Počet kusů / porcí (1 = ${r1(food.serving_g)} g)</span>
+    ${food.serving_g?`<label class="f"><span>Počet kusů / porcí (1 = ${fmtNum(food.serving_g)} ${u})</span>
       <div class="row">
         <button class="btn secondary" type="button" id="cMinus" style="width:48px">−</button>
         <input type="number" id="count" inputmode="decimal" min="0" step="any" style="text-align:center">
         <button class="btn secondary" type="button" id="cPlus" style="width:48px">+</button>
       </div></label>`:''}
     <div class="grid2">
-      <label class="f"><span>Množství (g)</span><input type="number" id="grams" inputmode="decimal" min="1" step="any" value="${g0}"></label>
+      <label class="f"><span>Množství (${u})</span><input type="number" id="grams" inputmode="decimal" min="1" step="any" value="${g0}"></label>
       <label class="f"><span>Jídlo</span><select id="meal">${MEALS.map(([k,l])=>`<option value="${k}" ${k===meal?'selected':''}>${l}</option>`).join('')}</select></label>
     </div>
     <div class="result" id="preview"></div>
@@ -603,7 +606,7 @@ function openAmount(food, meal, entry){
   const gi=$('#grams',m);
   const calc=()=>{ const g=num(gi.value)||0, k=g/100;
     return { grams:g, kcal:r1(food.kcal*k), protein:r1(food.protein*k), carbs:r1(food.carbs*k), fat:r1(food.fat*k) }; };
-  const upd=()=>{ const v=calc(); $('#preview',m).innerHTML=`<b>${r0(v.kcal)} kcal</b> · B ${v.protein} g · S ${v.carbs} g · T ${v.fat} g`; };
+  const upd=()=>{ const v=calc(); $('#preview',m).innerHTML=`<b>${r0(v.kcal)} kcal</b> · B ${fmtNum(v.protein)} g · S ${fmtNum(v.carbs)} g · T ${fmtNum(v.fat)} g`; };
   const ci=$('#count',m), sv=Number(food.serving_g)||0;
   const syncCount=()=>{ if(ci) ci.value = r1((num(gi.value)||0)/sv); };
   const setCount=c=>{ c=Math.max(0, Math.round(c*10)/10); ci.value=c; gi.value=r1(c*sv); upd(); };
@@ -615,8 +618,8 @@ function openAmount(food, meal, entry){
   }
   m.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ gi.value=b.dataset.g; syncCount(); upd(); });
   $('#save',m).onclick=async()=>{
-    const v=calc(); if(!(v.grams>0)) return toast('Zadej množství v gramech');
-    const row={ ...v, meal:$('#meal',m).value, food_id:food.id??null, food_name:food.name+(food.brand?' ('+food.brand+')':'') };
+    const v=calc(); if(!(v.grams>0)) return toast(u==='ml'?'Zadej množství v ml':'Zadej množství v gramech');
+    const row={ ...v, unit:u, meal:$('#meal',m).value, food_id:food.id??null, food_name:food.name+(food.brand?' ('+food.brand+')':'') };
     let res;
     if(entry){ if(entry.food_name) row.food_name=entry.food_name; res=await sb.from('meal_entries').update(row).eq('id',entry.id); }
     else res=await sb.from('meal_entries').insert({ ...row, date:S.date });
@@ -633,7 +636,7 @@ function openAmount(food, meal, entry){
 function openEditEntry(e){
   // hodnoty na 100 g dopočítáme ze záznamu, aby úprava fungovala i když potravina mezitím zmizela
   const k=100/Number(e.grams);
-  const food = { id:e.food_id, name:e.food_name, kcal:e.kcal*k, protein:e.protein*k, carbs:e.carbs*k, fat:e.fat*k };
+  const food = { id:e.food_id, name:e.food_name, unit:U(e), kcal:e.kcal*k, protein:e.protein*k, carbs:e.carbs*k, fat:e.fat*k };
   openAmount(food, e.meal, e);
 }
 
@@ -669,14 +672,15 @@ async function handleBarcode(code, then){
 }
 async function lookupOFF(code){
   try{
-    const r=await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_cs,brands,nutriments,serving_quantity`);
+    const r=await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_cs,brands,nutriments,serving_quantity,quantity,product_quantity_unit,nutrition_data_per`);
     if(!r.ok) return null;
     const j=await r.json(); if(j.status!==1||!j.product) return null;
     const p=j.product, n=p.nutriments||{};
     let kcal=n['energy-kcal_100g']; if(kcal==null && n['energy-kj_100g']!=null) kcal=n['energy-kj_100g']/4.184;
     return { name:(p.product_name_cs||p.product_name||'').trim(), brand:(p.brands||'').split(',')[0].trim(), barcode:code,
       kcal:kcal!=null?r1(kcal):'', protein:n.proteins_100g??'', carbs:n.carbohydrates_100g??'', sugar:n.sugars_100g??'',
-      fat:n.fat_100g??'', saturated_fat:n['saturated-fat_100g']??'', fiber:n.fiber_100g??'', salt:n.salt_100g??'', serving_g:p.serving_quantity||'', source:'off' };
+      fat:n.fat_100g??'', saturated_fat:n['saturated-fat_100g']??'', fiber:n.fiber_100g??'', salt:n.salt_100g??'', serving_g:p.serving_quantity||'', source:'off',
+      unit: (p.product_quantity_unit==='ml' || /100\s*ml/i.test(p.nutrition_data_per||'') || /\d\s*(ml|cl|l)\b/i.test(p.quantity||'')) ? 'ml' : 'g' };
   }catch(_){ return null; }
 }
 
@@ -814,6 +818,7 @@ async function openWizard(prefill, then){
   const steps = WZ_STEPS.filter(s=>!(s.key==='barcode' && prefill.barcode));
   const m=openModal(`${head('Načíst z obalu')}
     <div class="wz-steps">${steps.map(()=>'<i></i>').join('')}</div>
+    <div class="seg" id="wzUnitSeg" style="margin-bottom:8px"><button type="button" data-wu="g" class="${U(prefill)==='g'?'on':''}">Tabulka na 100 g</button><button type="button" data-wu="ml" class="${U(prefill)==='ml'?'on':''}">Tabulka na 100 ml</button></div>
     <div style="font-weight:700;font-size:17px" id="wzTitle"></div>
     <div class="small muted" id="wzHint" style="margin:2px 0 8px"></div>
     <div class="cam" id="wzCam"><div id="wzReader" class="hidden"></div><video id="wzVideo" playsinline muted autoplay></video><div class="frame" id="wzFrame"></div><div class="camMsg" id="wzMsg"></div></div>
@@ -832,8 +837,9 @@ async function openWizard(prefill, then){
       <button class="btn" id="wzOk" style="flex:1.4">Potvrdit</button>
     </div>
     <div class="wz-sum" id="wzSum"></div>`);
-  WZ={ active:true, steps, i:0, vals:{ barcode:prefill.barcode||null }, reads:[], edited:false, busy:false, stream:null, bc:null, camQ:Promise.resolve(), then, prefill, m };
+  WZ={ active:true, unit:U(prefill), steps, i:0, vals:{ barcode:prefill.barcode||null }, reads:[], edited:false, busy:false, stream:null, bc:null, camQ:Promise.resolve(), then, prefill, m };
   const video=$('#wzVideo',m), valIn=$('#wzVal',m);
+  m.querySelectorAll('[data-wu]').forEach(b=>b.onclick=()=>{ WZ.unit=b.dataset.wu; m.querySelectorAll('[data-wu]').forEach(x=>x.classList.toggle('on',x===b)); wzShow(); });
   valIn.oninput=()=>{ if(WZ) WZ.edited=true; };
 
   $('#wzBack',m).onclick=()=>{ if(WZ.i>0){ WZ.i--; wzShow(); } };
@@ -848,13 +854,13 @@ async function openWizard(prefill, then){
     if(st.type==='value'){
       const v=num(valIn.value);
       if(v==null) return st.required ? toast('Zadej hodnotu') : toast('Zadej hodnotu, nebo dej Přeskočit');
-      if(v<0 || v>(st.key==='kcal'?900:100)) return toast('Hodnota je mimo rozsah na 100 g');
+      if(v<0 || v>(st.key==='kcal'?900:100)) return toast('Hodnota je mimo rozsah na 100 '+WZ.unit);
       WZ.vals[st.key]=v; return wzNext();
     }
     if(st.type==='name'){
       const name=$('#wzName',m).value.trim();
       if(!name) return toast('Vyplň název');
-      const f={ ...WZ.prefill, ...WZ.vals, name, brand:$('#wzBrand',m).value.trim(), source:'photo' };
+      const f={ ...WZ.prefill, ...WZ.vals, unit:WZ.unit, name, brand:$('#wzBrand',m).value.trim(), source:'photo' };
       const then=WZ.then; wizardStop();
       return openFoodForm(f, then);
     }
@@ -867,7 +873,7 @@ function wzShow(){
   const m=WZ.m, st=WZ.steps[WZ.i];
   m.querySelectorAll('.wz-steps i').forEach((el,i)=>{ el.className = i<WZ.i?'done':(i===WZ.i?'cur':''); });
   $('#wzTitle',m).textContent=`${WZ.i+1}/${WZ.steps.length} · ${st.title}`;
-  $('#wzHint',m).textContent=st.hint;
+  $('#wzHint',m).textContent=st.hint.replace('100 g','100 '+WZ.unit);
   const fr=WZ_FRAME[st.type==='barcode'?'barcode':'value'], f=$('#wzFrame',m);
   Object.assign(f.style,{ left:fr.l+'%', top:fr.t+'%', width:fr.w+'%', height:fr.h+'%' });
   $('#wzCam',m).classList.toggle('hidden', st.type==='name');
@@ -999,29 +1005,36 @@ function openFoodForm(f, then){
       <label class="f"><span>Značka</span><input type="text" id="f_brand" value="${v('brand')}"></label>
       <label class="f"><span>Čárový kód</span><input type="text" id="f_barcode" inputmode="numeric" value="${v('barcode')}"></label>
     </div>
-    <div class="small muted" style="margin:4px 0 8px">Nutriční hodnoty na 100 g (ve stejném pořadí jako na obalu)</div>
+    <div class="small muted" style="margin:4px 0 6px">Hodnoty na obalu jsou uvedené</div>
+    <div class="seg" id="unitSeg"><button type="button" data-u="g" class="${U(f)==='g'?'on':''}">na 100 g</button><button type="button" data-u="ml" class="${U(f)==='ml'?'on':''}">na 100 ml</button></div>
+    <div class="small muted" style="margin:4px 0 8px" id="unitHint"></div>
     <div class="grid2">${field('kcal','Energie (kcal) *')}<div></div></div>
     <div class="grid2">${field('fat','Tuky (g)')}${field('saturated_fat','z toho nasycené (g)')}</div>
     <div class="grid2">${field('carbs','Sacharidy (g)')}${field('sugar','z toho cukry (g)')}</div>
     <div class="grid2">${field('fiber','Vláknina (g)')}${field('protein','Bílkoviny (g)')}</div>
-    <div class="grid2">${field('salt','Sůl (g)')}${field('serving_g','Porce (g)')}</div>
+    <div class="grid2">${field('salt','Sůl (g)')}${field('serving_g','Porce (<i class="uLbl" style="font-style:normal">g</i>)')}</div>
     <button class="btn block" id="saveFood">${isEdit?'Uložit':'Uložit potravinu'}</button>
     ${isEdit && f.created_by===S.user.id ? '<button class="btn danger block" id="delFood" style="margin-top:8px">Smazat potravinu</button>':''}
     ${isEdit && f.created_by!==S.user.id ? '<p class="small muted">Tuto potravinu přidal jiný člen rodiny, upravit ji může jen on.</p>':''}
     ${f.source==='off'?'<p class="small muted">Zdroj dat: Open Food Facts (openfoodfacts.org), licence ODbL.</p>':''}`);
-  if(isEdit && f.created_by!==S.user.id) m.querySelectorAll('input,#saveFood').forEach(x=>x.disabled=true);
+  let unit=U(f);
+  const setUnit=x=>{ unit=x; m.querySelectorAll('[data-u]').forEach(b=>b.classList.toggle('on', b.dataset.u===x));
+    m.querySelectorAll('.uLbl').forEach(el=>el.textContent=x);
+    $('#unitHint',m).textContent = x==='ml' ? 'Tekutina: hodnoty na 100 ml a množství v jídelníčku v ml.' : 'Nutriční hodnoty na 100 g, ve stejném pořadí jako na obalu.'; };
+  m.querySelectorAll('[data-u]').forEach(b=>b.onclick=()=>setUnit(b.dataset.u)); setUnit(unit);
+  if(isEdit && f.created_by!==S.user.id) m.querySelectorAll('input,#saveFood,[data-u]').forEach(x=>x.disabled=true);
   $('#saveFood',m).onclick=async()=>{
     const g=id=>$('#f_'+id,m).value;
     const row={ name:g('name').trim(), brand:g('brand').trim()||null, barcode:g('barcode').trim()||null,
       kcal:num(g('kcal')), protein:num(g('protein'))||0, carbs:num(g('carbs'))||0, sugar:num(g('sugar')),
-      fat:num(g('fat'))||0, saturated_fat:num(g('saturated_fat')), fiber:num(g('fiber')), salt:num(g('salt')), serving_g:num(g('serving_g'))||null };
+      fat:num(g('fat'))||0, saturated_fat:num(g('saturated_fat')), fiber:num(g('fiber')), salt:num(g('salt')), serving_g:num(g('serving_g'))||null, unit };
     if(row.saturated_fat!=null && row.saturated_fat>row.fat) return toast('Nasycené tuky nemůžou být vyšší než tuky celkem');
     if(row.sugar!=null && row.sugar>row.carbs) return toast('Cukry nemůžou být vyšší než sacharidy celkem');
     if(!row.name) return toast('Vyplň název');
     if(row.kcal==null) return toast('Vyplň energii v kcal');
     if(row.barcode && !/^\d{6,14}$/.test(row.barcode)) return toast('Čárový kód musí mít 6–14 číslic');
     const macroKcal=row.protein*4+row.carbs*4+row.fat*9;
-    if(row.protein+row.carbs+row.fat>100.5) return toast('Bílkoviny + sacharidy + tuky nemůžou mít víc než 100 g na 100 g');
+    if(row.protein+row.carbs+row.fat>(unit==='ml'?140:100.5)) return toast(unit==='ml'?'Součet maker je na 100 ml nezvykle vysoký – zkontroluj hodnoty':'Bílkoviny + sacharidy + tuky nemůžou mít víc než 100 g na 100 g');
     if(row.kcal>0 && Math.abs(macroKcal-row.kcal)/row.kcal>0.35 && !confirm(`Energie neodpovídá makrům (podle nich ~${r0(macroKcal)} kcal). Uložit i tak?`)) return;
     let res;
     if(isEdit) res=await sb.from('foods').update(row).eq('id',f.id).select().single();
