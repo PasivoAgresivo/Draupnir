@@ -65,19 +65,20 @@ nav.tabs button.active{border-color:var(--brand);color:var(--brand)}
 nav.tabs button.fab{width:58px;height:58px;border-radius:50%;background:var(--brand);color:var(--on-brand);box-shadow:0 4px 16px rgba(0,0,0,.5)}
 nav.tabs button.fab svg{width:26px;height:26px}
 /* souhrn dne */
-.rings-wrap{display:flex;align-items:center;gap:18px;padding:4px 4px 10px}
-.rings-wrap svg{flex:none}
-.rvals{display:flex;flex-direction:column;gap:6px;min-width:0}
-.rvals .lbl{font-size:12px;color:var(--muted);line-height:1.2}
-.rvals .v{font-family:Cinzel,Georgia,serif;font-weight:700;font-size:19px;white-space:nowrap;line-height:1.2}
-.rvals .v.big{font-size:24px}
-.rvals .v small{font-family:Inter,sans-serif;font-size:13px;color:var(--muted);font-weight:500}
-.tiles{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:6px}
-.tile{padding:12px 14px;border-radius:16px;background:var(--card);border:1px solid var(--line)}
-.tile.over{background:#2a1a12;border-color:var(--warn)}
-.tile .lbl{font-size:12px;color:var(--muted)}
-.tile .v{font-family:Cinzel,Georgia,serif;font-weight:700;font-size:22px}
-.tile .v small{font-family:Inter,sans-serif;font-size:13px;color:var(--muted);font-weight:500}
+.kcal-wrap{display:flex;flex-direction:column;align-items:center;padding:6px 0 14px}
+.kring{position:relative;width:220px;height:220px}
+.kin{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 28px}
+.kin .lbl{font-size:14px;color:var(--muted)}
+.kin .big{font-family:Cinzel,Georgia,serif;font-weight:700;font-size:46px;line-height:1.05;color:var(--kcal)}
+.kin .sub{font-size:13px;color:var(--muted);margin-top:2px}
+.kin .sub2{font-size:13px;color:var(--muted);margin-top:8px;white-space:nowrap}
+.mcharts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:6px}
+.mchart{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 6px 10px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.mring{position:relative;width:84px;height:84px}
+.mval{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Cinzel,Georgia,serif;font-weight:700;font-size:20px}
+.mval small{font-family:Inter,sans-serif;font-size:11px;color:var(--muted);font-weight:500;margin-left:2px}
+.mlbl{font-weight:600;font-size:14px;margin-top:6px}
+.msub{font-size:12px;color:var(--muted)}
 .sec-head{display:flex;justify-content:space-between;align-items:baseline;padding:12px 4px 8px}
 .sec-head h3{font-family:Cinzel,Georgia,serif;font-size:18px;margin:0}
 /* jídla */
@@ -350,21 +351,18 @@ function render(tab){
 
 // ---------- Záložka Jídelníček ----------
 function sums(list){ return list.reduce((a,e)=>({kcal:a.kcal+Number(e.kcal), protein:a.protein+Number(e.protein), carbs:a.carbs+Number(e.carbs), fat:a.fat+Number(e.fat)}),{kcal:0,protein:0,carbs:0,fat:0}); }
-// Soustředné kruhy; nad cílem se kruh uzavře a přebytek pokračuje oranžově
-function ringsSvg(rings){
-  let out='<svg width="164" height="164" viewBox="0 0 164 164" aria-hidden="true"><circle cx="82" cy="82" r="79" fill="none" stroke="#3a3328" stroke-width="1" stroke-dasharray="2 5"/>';
-  for(const g of rings){
-    const C=2*Math.PI*g.r;
-    out+=`<circle cx="82" cy="82" r="${g.r}" fill="none" stroke="#2a251d" stroke-width="10"/>`;
-    if(!g.target || !g.val) continue;
-    const ratio=g.val/g.target;
+// Jeden kruh; nad cílem je kruh plný a přebytek se kreslí tmavším odstínem stejné barvy
+function ringSvg(size, stroke, color, dark, val, target){
+  const c=size/2, r=c-stroke/2-1, C=2*Math.PI*r;
+  let out=`<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="#2a251d" stroke-width="${stroke}"/>`;
+  if(target && val>0){
+    const ratio=val/target;
     if(ratio<=1){
-      out+=`<circle cx="82" cy="82" r="${g.r}" fill="none" stroke="${g.color}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-ratio)).toFixed(1)}" transform="rotate(-90 82 82)"/>`;
+      out+=`<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-ratio)).toFixed(1)}" transform="rotate(-90 ${c} ${c})"/>`;
     } else {
       const ov=Math.min(1, ratio-1)*C;
-      out+=`<circle cx="82" cy="82" r="${g.r}" fill="none" stroke="${g.color}" stroke-width="10"/>`;
-      out+=`<circle cx="82" cy="82" r="${g.r}" fill="none" stroke="#14120e" stroke-width="14" stroke-linecap="round" stroke-dasharray="${(ov+2).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-89 82 82)"/>`;
-      out+=`<circle cx="82" cy="82" r="${g.r}" fill="none" stroke="var(--warn)" stroke-width="10" stroke-linecap="round" stroke-dasharray="${ov.toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 82 82)"/>`;
+      out+=`<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}"/>`;
+      out+=`<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${dark}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${ov.toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 ${c} ${c})"/>`;
     }
   }
   return out+'</svg>';
@@ -376,22 +374,27 @@ function renderToday(){
     + (S.date!==todayISO()?`<button class="icon-btn" id="goToday" aria-label="Zpět na dnešek">${IC.today}</button>`:'')
     + `<button class="icon-btn" id="nextDay" aria-label="Další den">${IC.next}</button>`;
   const overK = t.kcal && s.kcal>t.kcal, left=t.kcal-s.kcal;
-  const vcol = (v,tg,col) => tg && v>tg ? 'var(--warn)' : col;
+  const kcalInner = !t.kcal
+    ? `<div class="lbl">snědeno</div><div class="big">${r0(s.kcal)}</div><div class="sub">kcal</div>`
+    : overK
+      ? `<div class="lbl" style="color:var(--kcal)">přes cíl o</div><div class="big">${r0(-left)}</div><div class="sub">kcal</div><div class="sub2">snědeno ${r0(s.kcal)} z ${t.kcal}</div>`
+      : `<div class="lbl">zbývá</div><div class="big">${r0(left)}</div><div class="sub">kcal</div><div class="sub2">snědeno ${r0(s.kcal)} z ${t.kcal}</div>`;
+  const macro = (label, val, tg, col, dark) => {
+    const over = tg && val>tg;
+    return `<div class="mchart">
+      <div class="mring">${ringSvg(84,8,col,dark,val,tg)}<div class="mval" style="color:${col}">${r0(val)}<small> g</small></div></div>
+      <div class="mlbl">${label}</div>
+      <div class="msub" ${over?`style="color:${col}"`:''}>${tg ? (over ? `+${r0(val-tg)} g nad cíl` : `z ${tg} g`) : '&nbsp;'}</div>
+    </div>`; };
   let html = `
-  <div class="rings-wrap">
-    ${ringsSvg([{r:70,color:'var(--kcal)',val:s.kcal,target:t.kcal},{r:57,color:'var(--p)',val:s.protein,target:t.protein},{r:44,color:'var(--c)',val:s.carbs,target:t.carbs},{r:31,color:'var(--f)',val:s.fat,target:t.fat}])}
-    <div class="rvals">
-      <div><div class="lbl">Energie</div><div class="v big" style="color:${vcol(s.kcal,t.kcal,'var(--kcal)')}">${r0(s.kcal)}<small>${t.kcal?' / '+t.kcal:''} kcal</small></div></div>
-      <div><div class="lbl">Bílkoviny</div><div class="v" style="color:${vcol(s.protein,t.protein,'var(--p)')}">${r0(s.protein)}<small>${t.protein?' / '+t.protein:''} g</small></div></div>
-      <div><div class="lbl">Sacharidy</div><div class="v" style="color:${vcol(s.carbs,t.carbs,'var(--c)')}">${r0(s.carbs)}<small>${t.carbs?' / '+t.carbs:''} g</small></div></div>
-      <div><div class="lbl">Tuky</div><div class="v" style="color:${vcol(s.fat,t.fat,'var(--f)')}">${r0(s.fat)}<small>${t.fat?' / '+t.fat:''} g</small></div></div>
-    </div>
+  <div class="kcal-wrap">
+    <div class="kring">${ringSvg(220,18,'var(--kcal)','#6e9a24',s.kcal,t.kcal)}<div class="kin">${kcalInner}</div></div>
+    ${t.kcal?'':'<button class="btn outline" id="setGoal" style="margin-top:10px">Nastavit denní cíl</button>'}
   </div>
-  <div class="tiles">
-    ${t.kcal ? (overK
-      ? `<div class="tile over"><div class="lbl" style="color:var(--warn)">Přes cíl</div><div class="v" style="color:var(--warn)">+${r0(-left)} <small>kcal</small></div></div>`
-      : `<div class="tile"><div class="lbl">Zbývá</div><div class="v">${r0(left)} <small>kcal</small></div></div>`)
-      : `<button class="tile" id="setGoal" style="text-align:left;color:inherit;cursor:pointer"><div class="lbl">Denní cíl</div><div class="small" style="color:var(--brand);font-weight:600;padding-top:4px">Nastavit v Účtu →</div></button>`}
+  <div class="mcharts">
+    ${macro('Bílkoviny', s.protein, t.protein, 'var(--p)', '#2a7f9e')}
+    ${macro('Sacharidy', s.carbs, t.carbs, 'var(--c)', '#b5761c')}
+    ${macro('Tuky', s.fat, t.fat, 'var(--f)', '#b54a62')}
   </div>
   <div class="sec-head"><h3>Jídla</h3><span class="small muted">${MEALS.filter(([k])=>S.entries.some(e=>e.meal===k)).length} z ${MEALS.length}</span></div>`;
   for(const [key,label] of MEALS){
