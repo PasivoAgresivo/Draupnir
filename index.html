@@ -374,17 +374,17 @@ function renderToday(){
     + `<button class="icon-btn" id="nextDay" aria-label="Další den">${IC.next}</button>`;
   const overK = t.kcal && s.kcal>t.kcal, left=t.kcal-s.kcal;
   const kcalInner = !t.kcal
-    ? `<div class="lbl">snědeno</div><div class="big">${r0(s.kcal)}</div><div class="sub">kcal</div>`
+    ? `<div class="lbl">přijato</div><div class="big">${r0(s.kcal)}</div><div class="sub">kcal</div>`
     : overK
-      ? `<div class="lbl">cíl</div><div class="big">${t.kcal}</div><div class="sub">kcal</div><div class="sub2" style="color:var(--over);font-weight:700">přes cíl o ${r0(-left)} kcal</div>`
-      : `<div class="lbl">cíl</div><div class="big">${t.kcal}</div><div class="sub">kcal</div><div class="sub2">zbývá <b style="color:var(--ink)">${r0(left)}</b> kcal</div>`;
+      ? `<div class="lbl">přijato</div><div class="big">${r0(s.kcal)}</div><div class="sub">z ${t.kcal} kcal</div><div class="sub2" style="color:var(--over);font-weight:700">přes cíl o ${r0(-left)} kcal</div>`
+      : `<div class="lbl">přijato</div><div class="big">${r0(s.kcal)}</div><div class="sub">z ${t.kcal} kcal</div><div class="sub2">zbývá <b style="color:var(--ink)">${r0(left)}</b> kcal</div>`;
   const macro = (label, val, tg, col, dark) => {
     const over = tg && val>tg;
     return `<div class="mchart">
       <div class="mring">${ringSvg(64,6,col,dark,val,tg)}<div class="mval" style="color:${col}">${r0(val)}<small> g</small></div></div>
       <div class="mlbl">${label}</div>
       <div class="msub" ${over?'style="color:var(--over);font-weight:600"':''}>${tg ? (over ? `+${r0(val-tg)} g nad cíl` : `z ${tg} g`) : '&nbsp;'}</div>
-      ${over?`<div class="msub">${r0(val)} z ${tg} g</div>`:''}
+      ${over?`<div class="msub">${r0(val)} z ${tg} g</div>`:(tg?`<div class="msub">zbývá <b style="color:var(--ink)">${r0(tg-val)}</b> g</div>`:'')}
     </div>`; };
   let html = `
   <div class="kcal-wrap">
