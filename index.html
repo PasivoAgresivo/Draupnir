@@ -581,7 +581,10 @@ function openManageFavorites(meal){
 
 // Zadání množství
 function openAmount(food, meal, entry){
+  food={ ...food };
   const u = U(entry||food);
+  if(entry && food.id){ const live=S.foods.find(x=>x.id===food.id); if(live && live.serving_g){ food={ ...food, serving_g:live.serving_g, serving_name:live.serving_name }; } }
+  const sname = food.serving_name || 'porce';
   const g0 = entry ? Number(entry.grams) : (food.serving_g ? Number(food.serving_g) : 100);
   const quick = u==='ml' ? [100,200,250,330,500] : [50,100,150,200];
   const m=openModal(`${head(entry?'Upravit záznam':'Množství')}
@@ -591,9 +594,10 @@ function openAmount(food, meal, entry){
     </div>
     <div class="chips">
       ${quick.map(q=>`<button data-g="${q}">${q} ${u}</button>`).join('')}
-      ${food.serving_g?`<button data-g="${Number(food.serving_g)}">1 porce (${fmtNum(food.serving_g)} ${u})</button>`:''}
+      ${food.serving_g?`<button data-g="${Number(food.serving_g)}">1 ${esc(sname)} (${fmtNum(food.serving_g)} ${u})</button>`:''}
+      ${!food.serving_g && food.id && !entry ? `<button id="setPortion" style="border-style:dashed;color:var(--brand)">+ Nastavit porci</button>`:''}
     </div>
-    ${food.serving_g?`<label class="f"><span>Počet kusů / porcí (1 = ${fmtNum(food.serving_g)} ${u})</span>
+    ${food.serving_g?`<label class="f"><span>Počet – ${esc(sname)} (1 = ${fmtNum(food.serving_g)} ${u})</span>
       <div class="row">
         <button class="btn secondary" type="button" id="cMinus" style="width:48px">−</button>
         <input type="number" id="count" inputmode="decimal" min="0" step="any" style="text-align:center">
@@ -620,6 +624,7 @@ function openAmount(food, meal, entry){
     $('#cPlus',m).onclick=()=>setCount(Math.floor((num(ci.value)||0)+1));
   }
   m.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ gi.value=b.dataset.g; syncCount(); upd(); });
+  const sp=$('#setPortion',m); if(sp) sp.onclick=()=>openSetPortion(food, meal);
   $('#save',m).onclick=async()=>{
     const v=calc(); if(!(v.grams>0)) return toast(u==='ml'?'Zadej množství v ml':'Zadej množství v gramech');
     const row={ ...v, unit:u, meal:$('#meal',m).value, food_id:food.id??null, food_name:food.name+(food.brand?' ('+food.brand+')':'') };
@@ -634,6 +639,28 @@ function openAmount(food, meal, entry){
     const { error }=await sb.from('meal_entries').delete().eq('id',entry.id);
     if(error) return fail(error,'Smazání');
     await closeModal(); await loadEntries(); renderToday();
+  };
+}
+function openSetPortion(food, meal){
+  const u=U(food);
+  const m=openModal(`<div class="sheet-head"><h2>Nastavit porci</h2><button class="btn ghost" id="spBack">Zpět</button></div>
+    <div class="card"><div style="font-weight:600">${esc(food.name)}</div><div class="small muted">${food.brand?esc(food.brand)+' · ':''}${r0(food.kcal)} kcal / 100 ${u}</div></div>
+    <p class="small muted" style="margin-top:0">Gramáž porce bývá na obalu v tabulce hodnot ve sloupci „na porci“, třeba „1 plátek (25 g)“. Porce se uloží k potravině pro celou rodinu.</p>
+    <div class="chips">${['plátek','kus','kelímek','tyčinka','lžíce','sklenice'].map(n=>`<button data-n="${n}">${n}</button>`).join('')}</div>
+    <div class="grid2">
+      <label class="f"><span>Název porce</span><input type="text" id="sp_name" maxlength="30" placeholder="např. plátek"></label>
+      <label class="f"><span>Velikost (${u})</span><input type="number" id="sp_g" inputmode="decimal" min="0" step="any" placeholder="např. 25"></label>
+    </div>
+    <button class="btn block" id="sp_save">Uložit porci</button>`);
+  m.querySelectorAll('[data-n]').forEach(b=>b.onclick=()=>{ $('#sp_name',m).value=b.dataset.n; $('#sp_g',m).focus(); });
+  $('#spBack',m).onclick=()=>openAmount(food, meal);
+  $('#sp_save',m).onclick=async()=>{
+    const g=num($('#sp_g',m).value), n=$('#sp_name',m).value.trim();
+    if(!(g>0)) return toast('Zadej velikost porce');
+    const { error } = await sb.rpc('set_food_portion', { p_food_id:food.id, p_name:n||null, p_grams:g });
+    if(error) return fail(error,'Uložení porce');
+    await loadFoods(); const f2=S.foods.find(x=>x.id===food.id)||{ ...food, serving_g:g, serving_name:n||null };
+    toast('Porce uložena'); openAmount(f2, meal);
   };
 }
 function openEditEntry(e){
@@ -673,16 +700,25 @@ async function handleBarcode(code, then){
   toast('Kód není v databázi – přidej potravinu');
   chooseNewFood(off || { barcode:code }, then);
 }
+// Porce z Open Food Facts: „1 slice (25 g)“ → plátek 25 g; samotných 100 g není porce
+function offPortion(p){
+  const q=Number(p.serving_quantity)||null, txt=String(p.serving_size||'').toLowerCase();
+  const map=[[/slice|plát|platek/,'plátek'],[/piece|kus|ks\b|pcs/,'kus'],[/pot|cup|kelím|kelim/,'kelímek'],[/bar\b|tyčin|tycin/,'tyčinka'],[/biscuit|cookie|sušen|susen/,'sušenka'],[/tbsp|tablespoon|lžíc|lzic/,'lžíce'],[/glass|sklenic/,'sklenice'],[/can\b|plechov/,'plechovka'],[/bottle|láhev|lahev/,'láhev']];
+  let name=null; for(const [re,n] of map) if(re.test(txt)){ name=n; break; }
+  if(!q || q<=0) return { serving_g:'', serving_name:null };
+  if(q===100 && !name) return { serving_g:'', serving_name:null };
+  return { serving_g:q, serving_name:name };
+}
 async function lookupOFF(code){
   try{
-    const r=await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_cs,brands,nutriments,serving_quantity,quantity,product_quantity_unit,nutrition_data_per`);
+    const r=await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_cs,brands,nutriments,serving_quantity,serving_size,quantity,product_quantity_unit,nutrition_data_per`);
     if(!r.ok) return null;
     const j=await r.json(); if(j.status!==1||!j.product) return null;
     const p=j.product, n=p.nutriments||{};
     let kcal=n['energy-kcal_100g']; if(kcal==null && n['energy-kj_100g']!=null) kcal=n['energy-kj_100g']/4.184;
     return { name:(p.product_name_cs||p.product_name||'').trim(), brand:(p.brands||'').split(',')[0].trim(), barcode:code,
       kcal:kcal!=null?r1(kcal):'', protein:n.proteins_100g??'', carbs:n.carbohydrates_100g??'', sugar:n.sugars_100g??'',
-      fat:n.fat_100g??'', saturated_fat:n['saturated-fat_100g']??'', fiber:n.fiber_100g??'', salt:n.salt_100g??'', serving_g:p.serving_quantity||'', source:'off',
+      fat:n.fat_100g??'', saturated_fat:n['saturated-fat_100g']??'', fiber:n.fiber_100g??'', salt:n.salt_100g??'', ...offPortion(p), source:'off',
       unit: (p.product_quantity_unit==='ml' || /100\s*ml/i.test(p.nutrition_data_per||'') || /\d\s*(ml|cl|l)\b/i.test(p.quantity||'')) ? 'ml' : 'g' };
   }catch(_){ return null; }
 }
@@ -833,6 +869,10 @@ async function openWizard(prefill, then){
     <div id="wzNameRow" class="hidden">
       <label class="f"><span>Název *</span><input type="text" id="wzName" value="${esc(prefill.name||'')}"></label>
       <label class="f"><span>Značka</span><input type="text" id="wzBrand" value="${esc(prefill.brand||'')}"></label>
+      <div class="grid2">
+        <label class="f"><span>Název porce</span><input type="text" id="wzSName" maxlength="30" placeholder="plátek, kus…" value="${esc(prefill.serving_name||'')}"></label>
+        <label class="f"><span>Velikost porce</span><input type="number" id="wzSG" inputmode="decimal" min="0" step="any" placeholder="nepovinné" value="${prefill.serving_g||''}"></label>
+      </div>
     </div>
     <div class="row">
       <button class="btn ghost" id="wzBack">Zpět</button>
@@ -863,7 +903,7 @@ async function openWizard(prefill, then){
     if(st.type==='name'){
       const name=$('#wzName',m).value.trim();
       if(!name) return toast('Vyplň název');
-      const f={ ...WZ.prefill, ...WZ.vals, unit:WZ.unit, name, brand:$('#wzBrand',m).value.trim(), source:'photo' };
+      const f={ ...WZ.prefill, ...WZ.vals, unit:WZ.unit, name, brand:$('#wzBrand',m).value.trim(), serving_name:$('#wzSName',m).value.trim()||null, serving_g:num($('#wzSG',m).value)||null, source:'photo' };
       const then=WZ.then; wizardStop();
       return openFoodForm(f, then);
     }
@@ -1015,7 +1055,12 @@ function openFoodForm(f, then){
     <div class="grid2">${field('fat','Tuky (g)')}${field('saturated_fat','z toho nasycené (g)')}</div>
     <div class="grid2">${field('carbs','Sacharidy (g)')}${field('sugar','z toho cukry (g)')}</div>
     <div class="grid2">${field('fiber','Vláknina (g)')}${field('protein','Bílkoviny (g)')}</div>
-    <div class="grid2">${field('salt','Sůl (g)')}${field('serving_g','Porce (<i class="uLbl" style="font-style:normal">g</i>)')}</div>
+    <div class="grid2">${field('salt','Sůl (g)')}<div></div></div>
+    <div class="small muted" style="margin:4px 0 8px">Porce (nepovinné) – údaj z obalu, třeba „1 plátek = 25 g“</div>
+    <div class="grid2">
+      <label class="f"><span>Název porce</span><input type="text" id="f_serving_name" maxlength="30" placeholder="plátek, kus…" value="${v('serving_name')}"></label>
+      ${field('serving_g','Velikost (<i class="uLbl" style="font-style:normal">g</i>)')}
+    </div>
     <button class="btn block" id="saveFood">${isEdit?'Uložit':'Uložit potravinu'}</button>
     ${isEdit && f.created_by===S.user.id ? '<button class="btn danger block" id="delFood" style="margin-top:8px">Smazat potravinu</button>':''}
     ${isEdit && f.created_by!==S.user.id ? '<p class="small muted">Tuto potravinu přidal jiný člen rodiny, upravit ji může jen on.</p>':''}
@@ -1030,7 +1075,8 @@ function openFoodForm(f, then){
     const g=id=>$('#f_'+id,m).value;
     const row={ name:g('name').trim(), brand:g('brand').trim()||null, barcode:g('barcode').trim()||null,
       kcal:num(g('kcal')), protein:num(g('protein'))||0, carbs:num(g('carbs'))||0, sugar:num(g('sugar')),
-      fat:num(g('fat'))||0, saturated_fat:num(g('saturated_fat')), fiber:num(g('fiber')), salt:num(g('salt')), serving_g:num(g('serving_g'))||null, unit };
+      fat:num(g('fat'))||0, saturated_fat:num(g('saturated_fat')), fiber:num(g('fiber')), salt:num(g('salt')), serving_g:num(g('serving_g'))||null, serving_name:($('#f_serving_name',m).value.trim()||null), unit };
+    if(row.serving_name && !row.serving_g) return toast('Doplň velikost porce, nebo smaž její název');
     if(row.saturated_fat!=null && row.saturated_fat>row.fat) return toast('Nasycené tuky nemůžou být vyšší než tuky celkem');
     if(row.sugar!=null && row.sugar>row.carbs) return toast('Cukry nemůžou být vyšší než sacharidy celkem');
     if(!row.name) return toast('Vyplň název');
@@ -1147,7 +1193,7 @@ function openIngredientAmount(food){
   const u=U(food), quick=u==='ml'?[50,100,200,250,500]:[10,50,100,250,500];
   const m=openModal(`<div class="sheet-head"><h2>Množství</h2><button class="btn ghost" id="aBack">Zpět</button></div>
     <div class="card"><div style="font-weight:600">${esc(food.name)}</div><div class="small muted">${r0(food.kcal)} kcal / 100 ${u}</div></div>
-    <div class="chips">${quick.map(x=>`<button data-g="${x}">${x} ${u}</button>`).join('')}${food.serving_g?`<button data-g="${Number(food.serving_g)}">1 ks (${fmtNum(food.serving_g)} ${u})</button>`:''}</div>
+    <div class="chips">${quick.map(x=>`<button data-g="${x}">${x} ${u}</button>`).join('')}${food.serving_g?`<button data-g="${Number(food.serving_g)}">1 ${esc(food.serving_name||'porce')} (${fmtNum(food.serving_g)} ${u})</button>`:''}</div>
     <label class="f"><span>Množství (${u})</span><input type="number" id="ia" inputmode="decimal" min="0" step="any"></label>
     <button class="btn block" id="aOk">Přidat do receptu</button>`);
   const ia=$('#ia',m); ia.focus();
@@ -1163,7 +1209,7 @@ async function saveRecipe(){
   if(!t.weight) return toast('Recept nemá žádnou váhu');
   const per=100/t.weight, rd=(x,d=1)=>Math.round(x*per*Math.pow(10,d))/Math.pow(10,d);
   const row={ name:RE.name.trim(), unit:'g', source:'recipe', recipe_portions:RE.portions, recipe_cooked_g:RE.cooked,
-    serving_g: RE.portions ? Math.round(t.weight/RE.portions*10)/10 : null,
+    serving_g: RE.portions ? Math.round(t.weight/RE.portions*10)/10 : null, serving_name: RE.portions ? 'kus' : null,
     kcal:Math.min(1000,rd(t.kcal)), protein:Math.min(100,rd(t.protein)), carbs:Math.min(100,rd(t.carbs)), fat:Math.min(100,rd(t.fat)),
     sugar:Math.min(100,rd(t.sugar)), saturated_fat:Math.min(100,rd(t.saturated_fat)), fiber:Math.min(100,rd(t.fiber)), salt:Math.min(100,rd(t.salt,2)) };
   if(row.sugar>row.carbs) row.sugar=row.carbs;
