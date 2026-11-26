@@ -73,11 +73,11 @@ nav.tabs button.fab svg{width:26px;height:26px}
 .kin .sub{font-size:13px;color:var(--muted);margin-top:2px}
 .kin .sub2{font-size:13px;color:var(--muted);margin-top:8px;white-space:nowrap}
 .mcharts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:6px}
-.mchart{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 6px 10px;display:flex;flex-direction:column;align-items:center;text-align:center}
-.mring{position:relative;width:84px;height:84px}
-.mval{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Cinzel,Georgia,serif;font-weight:700;font-size:20px}
-.mval small{font-family:Inter,sans-serif;font-size:11px;color:var(--muted);font-weight:500;margin-left:2px}
-.mlbl{font-weight:600;font-size:14px;margin-top:6px}
+.mchart{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 4px 8px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.mring{position:relative;width:64px;height:64px}
+.mval{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Cinzel,Georgia,serif;font-weight:700;font-size:16px}
+.mval small{font-family:Inter,sans-serif;font-size:10px;color:var(--muted);font-weight:500;margin-left:1px}
+.mlbl{font-weight:600;font-size:13px;margin-top:4px}
 .msub{font-size:12px;color:var(--muted)}
 .sec-head{display:flex;justify-content:space-between;align-items:baseline;padding:12px 4px 8px}
 .sec-head h3{font-family:Cinzel,Georgia,serif;font-size:18px;margin:0}
@@ -381,7 +381,7 @@ function renderToday(){
   const macro = (label, val, tg, col, dark) => {
     const over = tg && val>tg;
     return `<div class="mchart">
-      <div class="mring">${ringSvg(84,8,col,dark,val,tg)}<div class="mval" style="color:${col}">${r0(val)}<small> g</small></div></div>
+      <div class="mring">${ringSvg(64,6,col,dark,val,tg)}<div class="mval" style="color:${col}">${r0(val)}<small> g</small></div></div>
       <div class="mlbl">${label}</div>
       <div class="msub" ${over?'style="color:var(--over);font-weight:600"':''}>${tg ? (over ? `+${r0(val-tg)} g nad cíl` : `z ${tg} g`) : '&nbsp;'}</div>
       ${over?`<div class="msub">${r0(val)} z ${tg} g</div>`:''}
