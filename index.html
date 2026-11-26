@@ -20,7 +20,7 @@
 :root{
   --bg:#14120e; --card:#1f1c17; --card2:#1b1814; --ink:#f2ede3; --muted:#a69d8c; --line:#2f2a21; --line2:#2a251d;
   --brand:#d4a94e; --brand-soft:#2a2418; --on-brand:#14120e; --warn:#ff8a5c; --danger:#ff8a8a;
-  --kcal:#b8f04a; --p:#4cc9f0; --c:#ffb547; --f:#ff7a96;
+  --kcal:#b8f04a; --over:#ff4d4d; --p:#4cc9f0; --c:#ffb547; --f:#ff7a96;
   --radius:16px;
 }
 *{box-sizing:border-box}
@@ -351,7 +351,7 @@ function render(tab){
 
 // ---------- Záložka Jídelníček ----------
 function sums(list){ return list.reduce((a,e)=>({kcal:a.kcal+Number(e.kcal), protein:a.protein+Number(e.protein), carbs:a.carbs+Number(e.carbs), fat:a.fat+Number(e.fat)}),{kcal:0,protein:0,carbs:0,fat:0}); }
-// Jeden kruh; nad cílem je kruh plný a přebytek se kreslí tmavším odstínem stejné barvy
+// Jeden kruh; nad cílem je kruh prostě plný (překročení zvýrazní červený text)
 function ringSvg(size, stroke, color, dark, val, target){
   const c=size/2, r=c-stroke/2-1, C=2*Math.PI*r;
   let out=`<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="#2a251d" stroke-width="${stroke}"/>`;
@@ -361,9 +361,7 @@ function ringSvg(size, stroke, color, dark, val, target){
       const cap = ratio>0.96 ? 'butt' : 'round';
       out+=`<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="${cap}" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-ratio)).toFixed(1)}" transform="rotate(-90 ${c} ${c})"/>`;
     } else {
-      const ov=Math.min(1, ratio-1)*C;
       out+=`<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}"/>`;
-      out+=`<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${dark}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${ov.toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 ${c} ${c})"/>`;
     }
   }
   return out+'</svg>';
@@ -378,14 +376,14 @@ function renderToday(){
   const kcalInner = !t.kcal
     ? `<div class="lbl">snědeno</div><div class="big">${r0(s.kcal)}</div><div class="sub">kcal</div>`
     : overK
-      ? `<div class="lbl">cíl</div><div class="big">${t.kcal}</div><div class="sub">kcal</div><div class="sub2" style="color:var(--kcal);font-weight:600">přes cíl o ${r0(-left)} kcal</div>`
+      ? `<div class="lbl">cíl</div><div class="big">${t.kcal}</div><div class="sub">kcal</div><div class="sub2" style="color:var(--over);font-weight:700">přes cíl o ${r0(-left)} kcal</div>`
       : `<div class="lbl">cíl</div><div class="big">${t.kcal}</div><div class="sub">kcal</div><div class="sub2">zbývá <b style="color:var(--ink)">${r0(left)}</b> kcal</div>`;
   const macro = (label, val, tg, col, dark) => {
     const over = tg && val>tg;
     return `<div class="mchart">
       <div class="mring">${ringSvg(84,8,col,dark,val,tg)}<div class="mval" style="color:${col}">${r0(val)}<small> g</small></div></div>
       <div class="mlbl">${label}</div>
-      <div class="msub" ${over?`style="color:${col}"`:''}>${tg ? (over ? `+${r0(val-tg)} g nad cíl` : `z ${tg} g`) : '&nbsp;'}</div>
+      <div class="msub" ${over?'style="color:var(--over);font-weight:600"':''}>${tg ? (over ? `+${r0(val-tg)} g nad cíl` : `z ${tg} g`) : '&nbsp;'}</div>
       ${over?`<div class="msub">${r0(val)} z ${tg} g</div>`:''}
     </div>`; };
   let html = `
